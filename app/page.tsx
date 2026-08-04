@@ -1,26 +1,6 @@
 export default function Home() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
-      <nav className="border-b border-zinc-800">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          <h1 className="text-2xl font-bold">
-            Skin<span className="text-orange-500">Radar</span>
-          </h1>
-
-          <div className="flex gap-6 text-sm text-zinc-300">
-            <a href="#">首页</a>
-            <a href="#">皮肤市场</a>
-            <a href="#">价格趋势</a>
-            <a href="#">职业选手</a>
-            <a href="#">CS2 新闻</a>
-          </div>
-
-          <button className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-black">
-            登录
-          </button>
-        </div>
-      </nav>
-
       <section className="mx-auto max-w-7xl px-6 py-24 text-center">
         <p className="mb-4 text-sm font-semibold text-orange-500">
           CS2 饰品数据平台
