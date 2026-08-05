@@ -3,9 +3,12 @@ import Link from "next/link";
 export default function Footer() {
   return (
     <footer className="border-t border-zinc-800 bg-zinc-950">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-10 text-sm text-zinc-400 md:flex-row md:items-center md:justify-between">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-10 text-sm text-zinc-400 sm:px-6 md:flex-row md:items-center md:justify-between">
         <div>
-          <Link href="/" className="text-lg font-bold text-white">
+          <Link
+            href="/"
+            className="text-lg font-bold text-white transition-colors hover:text-zinc-200"
+          >
             Skin<span className="text-orange-500">Radar</span>
           </Link>
 
@@ -14,7 +17,7 @@ export default function Footer() {
           </p>
         </div>
 
-        <div className="flex gap-6">
+        <nav aria-label="页脚导航" className="flex flex-wrap gap-x-6 gap-y-2">
           <Link href="/market" className="transition hover:text-white">
             市场
           </Link>
@@ -26,7 +29,7 @@ export default function Footer() {
           <Link href="/news" className="transition hover:text-white">
             新闻
           </Link>
-        </div>
+        </nav>
 
         <p>© 2026 SkinRadar</p>
       </div>

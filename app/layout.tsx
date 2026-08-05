@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "SkinRadar",
-  description: "CS2 饰品价格、市场趋势与职业选手数据平台",
+  description: "面向中国玩家的 CS2 饰品价格、市场趋势与职业选手数据平台。",
 };
 
 export default function RootLayout({
@@ -29,13 +29,9 @@ export default function RootLayout({
       lang="zh-CN"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-zinc-950 text-white">
+      <body className="flex min-h-full flex-col bg-zinc-950 font-sans text-zinc-100">
         <Navbar />
-
-        <main className="flex-1">
-          {children}
-        </main>
-
+        <main className="flex-1">{children}</main>
         <Footer />
       </body>
     </html>
