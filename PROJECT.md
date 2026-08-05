@@ -35,6 +35,8 @@ app/
   page.tsx
   globals.css
   market/page.tsx
+  market/[id]/page.tsx
+  market/[id]/not-found.tsx
   players/page.tsx
   news/page.tsx
   login/page.tsx
@@ -48,6 +50,9 @@ components/
   market/
     MarketExplorer.tsx
     MarketFilters.tsx
+    PlatformQuotes.tsx
+    PriceChange.tsx
+    PriceHistoryTable.tsx
     SkinCard.tsx
     SkinGrid.tsx
 data/
@@ -71,22 +76,25 @@ next.config.ts
 - 建立市场、职业选手、新闻和登录占位页
 - 建立市场页数据模型、本地模拟数据及客户端搜索、筛选和排序界面
 - 建立饰品结果卡片、响应式结果网格及空结果状态
+- 建立 10 个模拟饰品动态详情页、动态 metadata 与无效 ID 状态
+- 建立模拟平台报价列表和模拟价格历史表格
 - 配置 TypeScript、Tailwind CSS 与 ESLint 基线
 
 ## 7. 当前页面
 
 - `/`：首页，包含产品介绍、无功能搜索框和模拟统计卡片
 - `/market`：使用明确标注的本地模拟数据演示饰品搜索、筛选和排序
+- `/market/[id]`：展示单个模拟饰品的基础信息、模拟平台报价和模拟价格历史
 - `/players`：职业选手数据占位页
 - `/news`：CS2 新闻占位页
 - `/login`：账户功能占位页，不包含真实登录功能
 
 ## 8. 下一阶段计划
 
-1. 使用现有模型建立模拟饰品详情页，展示平台报价和价格历史信息
-2. 设计市场数据加载状态与错误状态
+1. 为市场数据转换、筛选、排序和详情查找逻辑补充测试
+2. 设计市场数据加载状态与非 404 错误状态
 3. 确认真实数据源、更新频率与合规要求后定义服务端数据接口
-4. 为数据转换、筛选和排序逻辑补充测试
+4. 为真实数据接入规划缓存、重试和降级策略
 5. 在数据层稳定后规划收藏、提醒与账户系统
 
 ## 9. 编码规范

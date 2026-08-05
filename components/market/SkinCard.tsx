@@ -1,33 +1,12 @@
+import Link from "next/link";
 import type { Skin } from "@/types/market";
+import PriceChange from "./PriceChange";
 
 type SkinCardProps = {
   skin: Skin;
 };
 
-function getPriceChangePresentation(priceChange24h: number) {
-  if (priceChange24h > 0) {
-    return {
-      text: `上涨 +${priceChange24h.toFixed(1)}%`,
-      className: "text-emerald-400",
-    };
-  }
-
-  if (priceChange24h < 0) {
-    return {
-      text: `下跌 ${priceChange24h.toFixed(1)}%`,
-      className: "text-red-400",
-    };
-  }
-
-  return {
-    text: "无变化 0.0%",
-    className: "text-zinc-300",
-  };
-}
-
 export default function SkinCard({ skin }: SkinCardProps) {
-  const priceChange = getPriceChangePresentation(skin.priceChange24h);
-
   return (
     <article className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
       <div
@@ -79,8 +58,8 @@ export default function SkinCard({ skin }: SkinCardProps) {
           </div>
           <div className="min-w-0">
             <dt className="text-zinc-500">24 小时模拟涨跌</dt>
-            <dd className={`mt-1 break-words font-semibold ${priceChange.className}`}>
-              {priceChange.text}
+            <dd className="mt-1 break-words">
+              <PriceChange value={skin.priceChange24h} />
             </dd>
           </div>
           <div className="col-span-2 min-w-0">
@@ -90,6 +69,15 @@ export default function SkinCard({ skin }: SkinCardProps) {
             </dd>
           </div>
         </dl>
+
+        <div className="mt-auto pt-6">
+          <Link
+            href={`/market/${skin.id}`}
+            className="inline-flex rounded-lg border border-orange-500/50 px-4 py-2 text-sm font-semibold text-orange-300 transition-colors hover:border-orange-400 hover:bg-orange-500/10 hover:text-orange-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
+          >
+            查看模拟详情
+          </Link>
+        </div>
       </div>
     </article>
   );
