@@ -1,4 +1,5 @@
 import type { PlatformQuote } from "@/types/market";
+import { sortPlatformQuotesByPrice } from "@/lib/market";
 
 type PlatformQuotesProps = {
   quotes: readonly PlatformQuote[];
@@ -17,9 +18,7 @@ function formatDemoUpdatedAt(updatedAt: string) {
 }
 
 export default function PlatformQuotes({ quotes }: PlatformQuotesProps) {
-  const sortedQuotes = [...quotes].sort(
-    (first, second) => first.price - second.price,
-  );
+  const sortedQuotes = sortPlatformQuotesByPrice(quotes);
 
   return (
     <section

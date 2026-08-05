@@ -1,35 +1,39 @@
+import { ALL_MARKET_FILTER_VALUE } from "@/types/market";
 import type {
   ExteriorType,
+  MarketFilterOptions,
+  MarketSortOption,
   SkinRarity,
   WeaponType,
 } from "@/types/market";
 
-export type MarketSortOption =
-  | "default"
-  | "price-asc"
-  | "price-desc"
-  | "change-desc"
-  | "change-asc";
-
 type MarketFiltersProps = {
   searchTerm: string;
-  selectedWeapon: WeaponType | "";
-  selectedExterior: ExteriorType | "";
-  selectedRarity: SkinRarity | "";
+  selectedWeapon: MarketFilterOptions["weapon"];
+  selectedExterior: MarketFilterOptions["exterior"];
+  selectedRarity: MarketFilterOptions["rarity"];
   sortOption: MarketSortOption;
   weaponOptions: readonly WeaponType[];
   exteriorOptions: readonly ExteriorType[];
   rarityOptions: readonly SkinRarity[];
   onSearchTermChange: (value: string) => void;
-  onWeaponChange: (value: WeaponType | "") => void;
-  onExteriorChange: (value: ExteriorType | "") => void;
-  onRarityChange: (value: SkinRarity | "") => void;
+  onWeaponChange: (value: MarketFilterOptions["weapon"]) => void;
+  onExteriorChange: (value: MarketFilterOptions["exterior"]) => void;
+  onRarityChange: (value: MarketFilterOptions["rarity"]) => void;
   onSortChange: (value: MarketSortOption) => void;
   onReset: () => void;
 };
 
 const controlClassName =
   "mt-2 w-full min-w-0 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20";
+
+const sortOptions = [
+  { value: "default", label: "默认排序" },
+  { value: "price-asc", label: "价格从低到高" },
+  { value: "price-desc", label: "价格从高到低" },
+  { value: "change-desc", label: "24 小时涨幅从高到低" },
+  { value: "change-asc", label: "24 小时跌幅从大到小" },
+] satisfies readonly { value: MarketSortOption; label: string }[];
 
 export default function MarketFilters({
   searchTerm,
@@ -73,11 +77,13 @@ export default function MarketFilters({
           <select
             value={selectedWeapon}
             onChange={(event) =>
-              onWeaponChange(event.target.value as WeaponType | "")
+              onWeaponChange(
+                event.target.value as MarketFilterOptions["weapon"],
+              )
             }
             className={controlClassName}
           >
-            <option value="">全部</option>
+            <option value={ALL_MARKET_FILTER_VALUE}>全部</option>
             {weaponOptions.map((weapon) => (
               <option key={weapon} value={weapon}>
                 {weapon}
@@ -91,11 +97,13 @@ export default function MarketFilters({
           <select
             value={selectedExterior}
             onChange={(event) =>
-              onExteriorChange(event.target.value as ExteriorType | "")
+              onExteriorChange(
+                event.target.value as MarketFilterOptions["exterior"],
+              )
             }
             className={controlClassName}
           >
-            <option value="">全部</option>
+            <option value={ALL_MARKET_FILTER_VALUE}>全部</option>
             {exteriorOptions.map((exterior) => (
               <option key={exterior} value={exterior}>
                 {exterior}
@@ -109,11 +117,13 @@ export default function MarketFilters({
           <select
             value={selectedRarity}
             onChange={(event) =>
-              onRarityChange(event.target.value as SkinRarity | "")
+              onRarityChange(
+                event.target.value as MarketFilterOptions["rarity"],
+              )
             }
             className={controlClassName}
           >
-            <option value="">全部</option>
+            <option value={ALL_MARKET_FILTER_VALUE}>全部</option>
             {rarityOptions.map((rarity) => (
               <option key={rarity} value={rarity}>
                 {rarity}
@@ -131,11 +141,11 @@ export default function MarketFilters({
             }
             className={controlClassName}
           >
-            <option value="default">默认排序</option>
-            <option value="price-asc">价格从低到高</option>
-            <option value="price-desc">价格从高到低</option>
-            <option value="change-desc">24 小时涨幅从高到低</option>
-            <option value="change-asc">24 小时跌幅从大到小</option>
+            {sortOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </label>
 

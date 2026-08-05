@@ -5,14 +5,11 @@ import PlatformQuotes from "@/components/market/PlatformQuotes";
 import PriceChange from "@/components/market/PriceChange";
 import PriceHistoryTable from "@/components/market/PriceHistoryTable";
 import { mockSkins } from "@/data/mock-skins";
+import { getSkinById } from "@/lib/market";
 
 type MarketDetailPageProps = {
   params: Promise<{ id: string }>;
 };
-
-function getMockSkin(id: string) {
-  return mockSkins.find((skin) => skin.id === id);
-}
 
 export function generateStaticParams() {
   return mockSkins.map((skin) => ({ id: skin.id }));
@@ -22,7 +19,7 @@ export async function generateMetadata({
   params,
 }: MarketDetailPageProps): Promise<Metadata> {
   const { id } = await params;
-  const skin = getMockSkin(id);
+  const skin = getSkinById(mockSkins, id);
 
   if (!skin) {
     return {
@@ -41,7 +38,7 @@ export default async function MarketDetailPage({
   params,
 }: MarketDetailPageProps) {
   const { id } = await params;
-  const skin = getMockSkin(id);
+  const skin = getSkinById(mockSkins, id);
 
   if (!skin) {
     notFound();

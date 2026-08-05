@@ -22,6 +22,7 @@ SkinRadar CN 是面向中国 CS2 用户的饰品数据平台。产品计划提�
 - TypeScript
 - Tailwind CSS 4
 - ESLint
+- Node.js 24 内置测试运行器
 - Git
 - Windows 开发环境
 
@@ -57,7 +58,12 @@ components/
     SkinGrid.tsx
 data/
   mock-skins.ts
+lib/
+  market.ts
+  market-validation.ts
 public/
+tests/
+  market.test.ts
 types/
   market.ts
 PROJECT.md
@@ -78,6 +84,8 @@ next.config.ts
 - 建立饰品结果卡片、响应式结果网格及空结果状态
 - 建立 10 个模拟饰品动态详情页、动态 metadata 与无效 ID 状态
 - 建立模拟平台报价列表和模拟价格历史表格
+- 建立市场查询纯函数、统一排序工具和模拟数据完整性验证
+- 建立基于 Node.js 内置测试运行器的无依赖自动化测试基线
 - 配置 TypeScript、Tailwind CSS 与 ESLint 基线
 
 ## 7. 当前页面
@@ -91,8 +99,8 @@ next.config.ts
 
 ## 8. 下一阶段计划
 
-1. 为市场数据转换、筛选、排序和详情查找逻辑补充测试
-2. 设计市场数据加载状态与非 404 错误状态
+1. 设计市场数据加载状态与非 404 错误状态
+2. 为市场筛选交互和详情导航规划浏览器级回归测试
 3. 确认真实数据源、更新频率与合规要求后定义服务端数据接口
 4. 为真实数据接入规划缓存、重试和降级策略
 5. 在数据层稳定后规划收藏、提醒与账户系统
@@ -127,7 +135,9 @@ next.config.ts
 - `components/layout`：跨页面共享的布局组件
 - `components/market`：市场页交互、筛选与饰品结果展示组件
 - `data`：明确标注用途的本地模拟数据
+- `lib`：不依赖 React 或浏览器 API 的市场查询、排序与数据验证纯函数
 - `public`：可直接公开访问的静态资源
+- `tests`：使用 Node.js 内置测试运行器执行的确定性自动化测试
 - `types`：跨组件共享的业务数据模型与联合类型
 - 项目根目录：工程配置、项目文档和依赖清单
 
@@ -152,3 +162,13 @@ next.config.ts
 ## 14. 真实数据说明
 
 在真实 API、数据库或经过验证的数据源接入前，任何模拟数据都不能描述为真实平台数据、实时数据或实际市场行情。首页当前显示的统计数字是前端布局用模拟展示数据，不代表 SkinRadar 已具备对应的数据覆盖与更新能力。
+
+## 15. 自动化验证
+
+- 市场查询与排序入口位于 `lib/market.ts`，负责 ID 查找、关键词搜索、组合筛选、饰品排序、平台报价排序和价格历史排序
+- 模拟数据验证位于 `lib/market-validation.ts`，返回包含字段路径和具体原因的结构化错误列表
+- 运行 `npm run test` 执行 `tests/market.test.ts`
+- 测试覆盖有效与无效 ID、搜索、单项及组合筛选、空结果、全部排序方式、输入不可变性、报价与历史排序以及模拟数据完整性
+- 当前 Node.js 24 可直接运行 TypeScript 测试，因此使用内置 `node:test` 和 `node:assert/strict`，无需引入 Vitest、Jest、tsx 或 ts-node
+- 尚未引入第三方测试框架，因为当前测试对象均为不依赖 DOM 的纯函数；浏览器交互测试应在明确工具和范围后单独规划
+- 下一阶段开发前必须保持 `npm run test`、`npm run lint` 和 `npm run build` 全部通过

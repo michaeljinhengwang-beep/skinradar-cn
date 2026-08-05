@@ -31,11 +31,35 @@ export const DEMO_MARKETS = [
   "Demo Market C",
 ] as const;
 
+export const ALL_MARKET_FILTER_VALUE = "all" as const;
+
+export const MARKET_SORT_OPTIONS = [
+  "default",
+  "price-asc",
+  "price-desc",
+  "change-desc",
+  "change-asc",
+] as const;
+
 export type WeaponType = (typeof WEAPON_TYPES)[number];
 export type ExteriorType = (typeof EXTERIOR_TYPES)[number];
 export type SkinRarity = (typeof RARITY_TYPES)[number];
 export type DemoMarket = (typeof DEMO_MARKETS)[number];
 export type CurrencyCode = "CAD";
+export type AllMarketFilterValue = typeof ALL_MARKET_FILTER_VALUE;
+export type MarketSortOption = (typeof MARKET_SORT_OPTIONS)[number];
+export type PriceHistoryOrder = "asc" | "desc";
+
+export type MarketFilterOptions = {
+  query: string;
+  weapon: WeaponType | AllMarketFilterValue;
+  exterior: ExteriorType | AllMarketFilterValue;
+  rarity: SkinRarity | AllMarketFilterValue;
+};
+
+export type MarketQueryOptions = MarketFilterOptions & {
+  sort: MarketSortOption;
+};
 
 export type PlatformQuote = {
   platform: DemoMarket;

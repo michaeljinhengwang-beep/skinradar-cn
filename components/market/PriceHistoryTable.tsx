@@ -1,4 +1,5 @@
 import type { PriceHistoryPoint } from "@/types/market";
+import { sortPriceHistoryByDate } from "@/lib/market";
 
 type PriceHistoryTableProps = {
   history: readonly PriceHistoryPoint[];
@@ -7,9 +8,7 @@ type PriceHistoryTableProps = {
 export default function PriceHistoryTable({
   history,
 }: PriceHistoryTableProps) {
-  const sortedHistory = [...history].sort((first, second) =>
-    first.date.localeCompare(second.date),
-  );
+  const sortedHistory = sortPriceHistoryByDate(history);
 
   return (
     <section
