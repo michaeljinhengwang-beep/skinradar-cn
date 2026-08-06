@@ -23,13 +23,14 @@ export async function generateMetadata({
 
   if (!skin) {
     return {
-      title: "未找到模拟饰品 | SkinRadar",
-      description: "SkinRadar 本地模拟饰品页面未找到对应内容。",
+      title: "模拟饰品未找到",
+      description: "未找到对应的 SkinRadar 本地模拟饰品内容。",
+      robots: { index: false, follow: true },
     };
   }
 
   return {
-    title: `${skin.name} 模拟详情 | SkinRadar`,
+    title: `${skin.name} 模拟详情`,
     description: `查看 ${skin.name} 的 SkinRadar 本地模拟报价与模拟价格历史；内容不代表真实市场数据。`,
   };
 }

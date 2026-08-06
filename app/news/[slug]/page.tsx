@@ -23,13 +23,14 @@ export async function generateMetadata({
 
   if (!article) {
     return {
-      title: "未找到模拟新闻 | SkinRadar",
-      description: "SkinRadar 本地模拟新闻详情页未找到对应内容。",
+      title: "模拟新闻未找到",
+      description: "未找到对应的 SkinRadar 本地虚构新闻内容。",
+      robots: { index: false, follow: true },
     };
   }
 
   return {
-    title: `${article.title} | SkinRadar 模拟新闻`,
+    title: `${article.title}｜模拟新闻`,
     description: `${article.summary} 本页为 SkinRadar 本地虚构模拟新闻，不代表真实媒体内容。`,
   };
 }

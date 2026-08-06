@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import DemoDataNotice from "@/components/home/DemoDataNotice";
 import DemoStats from "@/components/home/DemoStats";
 import FeatureOverview from "@/components/home/FeatureOverview";
@@ -14,6 +15,14 @@ import {
   getHomepagePlayerPreview,
   getHomepageSkinPreview,
 } from "@/lib/home";
+
+export const metadata: Metadata = {
+  title: {
+    absolute: "SkinRadar｜CS2 数据产品演示入口",
+  },
+  description:
+    "SkinRadar 前端展示版统一入口，提供本地模拟饰品市场、虚构选手配置和模拟新闻预览。",
+};
 
 export default function Home() {
   const skinPreview = getHomepageSkinPreview(mockSkins, 4);

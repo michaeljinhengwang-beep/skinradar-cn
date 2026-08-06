@@ -13,7 +13,7 @@ export default function Footer() {
           </Link>
 
           <p className="mt-2">
-            CS2 饰品价格、市场趋势与职业选手数据平台。
+            CS2 饰品、选手配置与新闻的模拟数据产品演示。
           </p>
         </div>
 

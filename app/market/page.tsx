@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import MarketExplorer from "@/components/market/MarketExplorer";
 import { mockSkins } from "@/data/mock-skins";
+
+export const metadata: Metadata = {
+  title: "模拟皮肤市场",
+  description:
+    "浏览 SkinRadar 本地模拟饰品、报价与筛选界面；页面不提供真实或实时市场价格。",
+};
 
 export default function MarketPage() {
   return (

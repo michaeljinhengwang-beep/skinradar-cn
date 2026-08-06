@@ -1,11 +1,5 @@
 import Link from "next/link";
-
-const navigationItems = [
-  { label: "首页", href: "/" },
-  { label: "市场", href: "/market" },
-  { label: "职业选手", href: "/players" },
-  { label: "新闻", href: "/news" },
-];
+import { siteConfig } from "@/lib/site";
 
 export default function Navbar() {
   return (
@@ -22,7 +16,7 @@ export default function Navbar() {
         </Link>
 
         <div className="order-3 flex w-full flex-wrap items-center justify-center gap-x-5 gap-y-2 sm:order-none sm:w-auto sm:flex-nowrap sm:gap-6 lg:gap-8">
-          {navigationItems.map((item) => (
+          {siteConfig.navigation.map((item) => (
             <Link
               key={item.href}
               href={item.href}

@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import PlayerExplorer from "@/components/players/PlayerExplorer";
 import { mockPlayers } from "@/data/mock-players";
+
+export const metadata: Metadata = {
+  title: "模拟职业选手配置",
+  description:
+    "浏览 SkinRadar 虚构选手的模拟灵敏度、准星和外设配置；内容不来自真实选手或 HLTV。",
+};
 
 export default function PlayersPage() {
   return (

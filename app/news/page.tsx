@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import FeaturedNews from "@/components/news/FeaturedNews";
 import NewsExplorer from "@/components/news/NewsExplorer";
 import { mockNews } from "@/data/mock-news";
 import { getFeaturedNews } from "@/lib/news";
+
+export const metadata: Metadata = {
+  title: "模拟 CS2 新闻",
+  description:
+    "浏览 SkinRadar 本地虚构 CS2 新闻目录和文章演示；内容不代表 Valve、HLTV 或真实媒体报道。",
+};
 
 export default function NewsPage() {
   const featuredNews = getFeaturedNews(mockNews);

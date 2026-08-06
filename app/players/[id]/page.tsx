@@ -23,13 +23,14 @@ export async function generateMetadata({
 
   if (!player) {
     return {
-      title: "未找到模拟选手 | SkinRadar",
-      description: "SkinRadar 本地模拟选手详情页未找到对应内容。",
+      title: "模拟选手未找到",
+      description: "未找到对应的 SkinRadar 本地模拟选手内容。",
+      robots: { index: false, follow: true },
     };
   }
 
   return {
-    title: `${player.nickname} 模拟选手详情 | SkinRadar`,
+    title: `${player.nickname} 模拟选手详情`,
     description: `查看 ${player.nickname} 的 SkinRadar 本地模拟选手详情；内容不代表真实职业选手、战队或 HLTV 信息。`,
   };
 }
