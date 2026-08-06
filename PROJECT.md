@@ -39,6 +39,8 @@ app/
   market/[id]/page.tsx
   market/[id]/not-found.tsx
   players/page.tsx
+  players/[id]/page.tsx
+  players/[id]/not-found.tsx
   news/page.tsx
   login/page.tsx
 components/
@@ -61,6 +63,9 @@ components/
     PlayerFilters.tsx
     PlayerCard.tsx
     PlayerGrid.tsx
+    PlayerSettings.tsx
+    PlayerEquipment.tsx
+    PlayerStatusBadge.tsx
 data/
   mock-skins.ts
   mock-players.ts
@@ -98,6 +103,7 @@ next.config.ts
 - 建立职业选手数据模型、12 条虚构模拟资料及目录搜索、筛选和排序界面
 - 建立选手查询纯函数、数据完整性验证与自动化测试
 - 完善选手目录的模拟准星代码和鼠标、键盘、鼠标垫、耳机、显示器信息展示
+- 建立 12 个模拟选手动态详情页，使用 `generateStaticParams`、动态 metadata、自定义 `notFound` 及完整设置展示
 - 建立基于 Node.js 内置测试运行器的无依赖自动化测试基线
 - 配置 TypeScript、Tailwind CSS 与 ESLint 基线
 
@@ -107,13 +113,14 @@ next.config.ts
 - `/market`：使用明确标注的本地模拟数据演示饰品搜索、筛选和排序
 - `/market/[id]`：展示单个模拟饰品的基础信息、模拟平台报价和模拟价格历史
 - `/players`：使用明确标注的虚构本地资料演示选手搜索、筛选、排序、模拟准星及完整外设配置
+- `/players/[id]`：通过静态参数生成展示单个虚构选手的完整游戏设置、模拟准星和外设配置
 - `/news`：CS2 新闻占位页
 - `/login`：账户功能占位页，不包含真实登录功能
 
 ## 8. 下一阶段计划
 
-1. 设计市场数据加载状态与非 404 错误状态
-2. 建立仅使用本地模拟数据的选手详情页
+1. 建立 CS2 新闻模块的数据模型、本地模拟数据和目录页面
+2. 设计市场数据加载状态与非 404 错误状态
 3. 为市场和选手筛选交互规划浏览器级回归测试
 4. 确认真实数据源、更新频率与合规要求后定义服务端数据接口
 5. 为真实数据接入规划缓存、重试和降级策略
@@ -187,6 +194,7 @@ next.config.ts
 - 运行 `npm run test` 执行 `tests/*.test.ts` 中的全部测试
 - 市场测试覆盖有效与无效 ID、搜索、单项及组合筛选、空结果、全部排序方式、输入不可变性、报价与历史排序以及模拟数据完整性
 - 选手测试覆盖 ID 查找、搜索、单项及组合筛选、空结果、全部排序方式、输入不可变性和模拟资料完整性
+- 选手详情测试覆盖全部静态 ID、ID 唯一性及详情页所需字段完整性；生产构建验证 `generateStaticParams`、动态 metadata 和自定义 `notFound`
 - 当前 Node.js 24 可直接运行 TypeScript 测试，因此使用内置 `node:test` 和 `node:assert/strict`，无需引入 Vitest、Jest、tsx 或 ts-node
 - 尚未引入第三方测试框架，因为当前测试对象均为不依赖 DOM 的纯函数；浏览器交互测试应在明确工具和范围后单独规划
 - 下一阶段开发前必须保持 `npm run test`、`npm run lint` 和 `npm run build` 全部通过

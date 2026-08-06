@@ -39,6 +39,63 @@ test("getPlayerById returns undefined for an unknown id", () => {
   assert.equal(getPlayerById(mockPlayers, "missing-player"), undefined);
 });
 
+test("getPlayerById resolves every simulated player detail id", () => {
+  assert.ok(
+    mockPlayers.every(
+      (player) => getPlayerById(mockPlayers, player.id) === player,
+    ),
+  );
+});
+
+test("every simulated player id is suitable for a static route param", () => {
+  const staticParams = mockPlayers.map((player) => ({ id: player.id }));
+
+  assert.equal(staticParams.length, 12);
+  assert.ok(
+    staticParams.every(
+      ({ id }) =>
+        /^demo-player-[a-z0-9-]+$/.test(id) && encodeURIComponent(id) === id,
+    ),
+  );
+});
+
+test("all simulated player detail ids are unique", () => {
+  const ids = mockPlayers.map((player) => player.id);
+
+  assert.equal(new Set(ids).size, ids.length);
+});
+
+test("every simulated player has all fields required by the detail page", () => {
+  const textFields = [
+    "nickname",
+    "realName",
+    "team",
+    "nationality",
+    "region",
+    "status",
+    "resolution",
+    "aspectRatio",
+    "crosshairCode",
+    "mouse",
+    "keyboard",
+    "mousepad",
+    "headset",
+    "monitor",
+    "updatedAt",
+  ] as const satisfies readonly (keyof Player)[];
+
+  mockPlayers.forEach((player) => {
+    textFields.forEach((field) => {
+      assert.ok(player[field].trim().length > 0, `${player.id}.${field}`);
+    });
+    assert.ok(player.roles.length > 0, `${player.id}.roles`);
+    assert.ok(player.dpi > 0, `${player.id}.dpi`);
+    assert.ok(player.sensitivity > 0, `${player.id}.sensitivity`);
+    assert.ok(player.effectiveDpi > 0, `${player.id}.effectiveDpi`);
+    assert.ok(player.zoomSensitivity > 0, `${player.id}.zoomSensitivity`);
+  });
+});
+
 test("searchPlayers ignores English letter casing", () => {
   assert.deepEqual(
     searchPlayers(mockPlayers, "  AeRaLiS  ").map((player) => player.id),

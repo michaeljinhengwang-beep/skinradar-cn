@@ -1,30 +1,12 @@
-import type { Player, PlayerStatus } from "@/types/player";
+import Link from "next/link";
+import type { Player } from "@/types/player";
+import PlayerStatusBadge from "./PlayerStatusBadge";
 
 interface PlayerCardProps {
   player: Player;
 }
 
-const STATUS_PRESENTATION: Record<
-  PlayerStatus,
-  { label: string; className: string }
-> = {
-  Active: {
-    label: "Active · 活跃",
-    className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
-  },
-  Benched: {
-    label: "Benched · 替补",
-    className: "border-amber-500/40 bg-amber-500/10 text-amber-200",
-  },
-  Inactive: {
-    label: "Inactive · 非活跃",
-    className: "border-zinc-500/50 bg-zinc-500/10 text-zinc-300",
-  },
-};
-
 export default function PlayerCard({ player }: PlayerCardProps) {
-  const status = STATUS_PRESENTATION[player.status];
-
   return (
     <article className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70 shadow-lg shadow-black/10">
       <div className="flex min-h-36 items-center justify-center border-b border-zinc-800 bg-gradient-to-br from-zinc-900 via-zinc-900 to-orange-950/40 px-6 py-8 text-center">
@@ -49,11 +31,7 @@ export default function PlayerCard({ player }: PlayerCardProps) {
               {player.realName}
             </p>
           </div>
-          <span
-            className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${status.className}`}
-          >
-            {status.label}
-          </span>
+          <PlayerStatusBadge status={player.status} />
         </div>
 
         <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
@@ -150,6 +128,15 @@ export default function PlayerCard({ player }: PlayerCardProps) {
             </div>
           </dl>
         </section>
+
+        <div className="mt-auto border-t border-zinc-800 pt-5">
+          <Link
+            href={`/players/${player.id}`}
+            className="inline-flex rounded-lg border border-orange-500/40 px-3.5 py-2 text-sm font-semibold text-orange-300 transition-colors hover:border-orange-400 hover:bg-orange-500/10 hover:text-orange-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
+          >
+            查看模拟详情 →
+          </Link>
+        </div>
       </div>
     </article>
   );
