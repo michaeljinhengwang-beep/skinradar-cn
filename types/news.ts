@@ -73,6 +73,7 @@ export interface NewsArticle {
   image: string | null;
   sourceLabel: NewsSourceLabel;
   contentPreview: string;
+  contentSections: string[];
 }
 
 export interface NewsFilterOptions {

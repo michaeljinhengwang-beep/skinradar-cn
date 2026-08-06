@@ -42,6 +42,8 @@ app/
   players/[id]/page.tsx
   players/[id]/not-found.tsx
   news/page.tsx
+  news/[slug]/page.tsx
+  news/[slug]/not-found.tsx
   login/page.tsx
 components/
   home/
@@ -72,6 +74,9 @@ components/
     NewsCard.tsx
     NewsGrid.tsx
     FeaturedNews.tsx
+    NewsArticleContent.tsx
+    NewsMetadata.tsx
+    RelatedNews.tsx
 data/
   mock-skins.ts
   mock-players.ts
@@ -117,6 +122,8 @@ next.config.ts
 - 建立 12 个模拟选手动态详情页，使用 `generateStaticParams`、动态 metadata、自定义 `notFound` 及完整设置展示
 - 建立 14 条虚构模拟新闻、新闻目录、模拟精选区及客户端搜索、筛选和排序界面
 - 建立新闻查询纯函数、结构化数据验证和自动化测试
+- 建立 14 个模拟新闻动态详情页，使用 `generateStaticParams`、动态 metadata、自定义 `notFound`、模拟正文、完整元信息和相关文章推荐
+- 新闻目录卡片与模拟精选新闻均可进入对应详情页
 - 建立基于 Node.js 内置测试运行器的无依赖自动化测试基线
 - 配置 TypeScript、Tailwind CSS 与 ESLint 基线
 
@@ -128,13 +135,14 @@ next.config.ts
 - `/players`：使用明确标注的虚构本地资料演示选手搜索、筛选、排序、模拟准星及完整外设配置
 - `/players/[id]`：通过静态参数生成展示单个虚构选手的完整游戏设置、模拟准星和外设配置
 - `/news`：使用本地虚构内容演示新闻精选、搜索、分类、地区、标签筛选和排序
+- `/news/[slug]`：静态生成单篇模拟新闻详情，展示虚构正文、元信息、标签、免责声明和相关文章
 - `/login`：账户功能占位页，不包含真实登录功能
 
 ## 8. 下一阶段计划
 
-1. 建立 `/news/[slug]` 模拟新闻详情页
-2. 设计市场数据加载状态与非 404 错误状态
-3. 为市场和选手筛选交互规划浏览器级回归测试
+1. 整合首页的市场、选手与新闻模块入口
+2. 进行真实数据接入前的部署准备和环境检查
+3. 设计市场数据加载状态与非 404 错误状态
 4. 确认真实数据源、更新频率与合规要求后定义服务端数据接口
 5. 为真实数据接入规划缓存、重试和降级策略
 
@@ -196,6 +204,7 @@ next.config.ts
 - 选手页当前的昵称、姓名、战队、角色、参数和外设均为虚构本地模拟值，不代表真实职业选手或 HLTV 资料
 - 选手页准星代码及全部外设型号均为虚构展示数据，不代表真实选手配置，也不构成外设购买建议
 - 新闻页标题、摘要、作者、来源标签、日期和热度均为虚构展示数据，不代表 Valve、HLTV、战队、选手或新闻媒体发布的真实内容，不可作为事实引用
+- 新闻详情页正文和相关文章推荐同样只使用本地虚构数据；推荐结果不代表真实媒体判断
 
 ## 14. 真实数据说明
 
@@ -212,6 +221,7 @@ next.config.ts
 - 选手测试覆盖 ID 查找、搜索、单项及组合筛选、空结果、全部排序方式、输入不可变性和模拟资料完整性
 - 选手详情测试覆盖全部静态 ID、ID 唯一性及详情页所需字段完整性；生产构建验证 `generateStaticParams`、动态 metadata 和自定义 `notFound`
 - 新闻测试覆盖 ID 与 slug 查找、中文和英文搜索、组合筛选、五种排序、精选结果、输入不可变性及模拟数据完整性
+- 新闻详情测试覆盖全部静态 slug、详情字段、模拟正文验证、相关文章优先级、推荐稳定性和输入不可变性；生产构建验证动态 metadata 与自定义 `notFound`
 - 当前 Node.js 24 可直接运行 TypeScript 测试，因此使用内置 `node:test` 和 `node:assert/strict`，无需引入 Vitest、Jest、tsx 或 ts-node
 - 尚未引入第三方测试框架，因为当前测试对象均为不依赖 DOM 的纯函数；浏览器交互测试应在明确工具和范围后单独规划
 - 下一阶段开发前必须保持 `npm run test`、`npm run lint` 和 `npm run build` 全部通过

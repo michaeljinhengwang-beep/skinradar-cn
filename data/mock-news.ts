@@ -19,6 +19,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "SkinRadar Demo",
     contentPreview: "本文仅用模拟段落说明赛事观察类内容可以如何组织，不对应任何真实赛果。",
+    contentSections: [
+      "这篇本地模拟文章先用虚构的地图选择流程说明详情页如何承接目录摘要，并帮助读者识别分类、地区和标签等信息。",
+      "演示场景把准备、选择与复盘拆成独立观察节点，只用于测试正文段落、阅读宽度和元信息布局，不描述任何真实比赛。",
+      "页面最后以固定的模拟结论收束内容：不同信息应保持清楚层级，但这里的节奏、判断和日期都不能作为赛事事实引用。",
+    ],
   },
   {
     id: "demo-news-lineup-framework",
@@ -37,6 +42,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "Local Mock News",
     contentPreview: "内容使用完全虚构的阵容设定，展示分析框架而非报道真实转会。",
+    contentSections: [
+      "本地模拟稿以一支不存在的演示战队为例，把阵容磨合拆分为角色说明、训练记录和阶段回顾三个界面区块。",
+      "正文中的分工只用于展示信息结构，没有对应真实选手、教练或转会事件，也不代表任何战队正在采用这些方法。",
+      "通过这组虚构段落可以检查长标题、标签与推荐卡片的排版，但不能据此推断现实阵容表现或人员变化。",
+    ],
   },
   {
     id: "demo-news-training-mode-ideas",
@@ -55,6 +65,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "Demo Editorial",
     contentPreview: "这些功能仅为界面演示设想，不代表 Valve 公告、开发计划或真实版本内容。",
+    contentSections: [
+      "这份模拟版本讨论将训练入口、练习任务和设置面板视为纯粹的产品草图，用来演示功能型新闻详情的阅读结构。",
+      "所有功能名称和操作流程均为本地虚构设想，没有引用客户端文件、Valve 公告或任何已经发布的真实更新。",
+      "段落重点是验证界面能否清楚区分设想、说明和免责声明，而不是预测未来版本或给出产品发布时间。",
+    ],
   },
   {
     id: "demo-news-liquidity-interface",
@@ -73,6 +88,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "SkinRadar Demo",
     contentPreview: "所有指标均为虚构展示值，不代表任何真实平台交易量或市场判断。",
+    contentSections: [
+      "本地模拟专题用虚构的流动性标签演示市场类文章如何解释指标名称、筛选维度与卡片信息层级。",
+      "示例不包含真实价格、成交量或平台数据，任何数值感受都只服务于布局验证，不能用于交易或投资判断。",
+      "详情页通过固定段落强调数据边界，并检查较长市场说明在手机与桌面阅读宽度下是否都能安全换行。",
+    ],
   },
   {
     id: "demo-news-viewing-discussion-layout",
@@ -91,6 +111,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "Local Mock News",
     contentPreview: "讨论区设定完全虚构，仅用于验证社区新闻分类和响应式排版。",
+    contentSections: [
+      "这篇模拟社区策划把观赛讨论拆成主题摘要、播报提示和标签分组，用于展示社区类新闻可以采用的内容层级。",
+      "所有讨论主题、用户反应和播报情境均为虚构文本，不对应任何真实社区帖子、直播或赛事活动。",
+      "演示正文只验证信息密度、段落间距和相关文章入口，不提供社区规则、活动承诺或真实参与数据。",
+    ],
   },
   {
     id: "demo-news-role-observation-template",
@@ -109,6 +134,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "Demo Editorial",
     contentPreview: "本文不描述任何真实选手，仅展示选手栏目可以采用的观察模板。",
+    contentSections: [
+      "本地模拟文章用不存在的角色样本说明选手栏目如何组织突破、支援与指挥等观察维度。",
+      "这些角色描述不指向真实职业选手，也没有采用比赛记录、采访内容或 HLTV 数据来形成任何判断。",
+      "正文结尾仅总结页面模板的阅读顺序，帮助验证元信息与标签展示，不应被理解为选手能力评价。",
+    ],
   },
   {
     id: "demo-news-timeout-communication",
@@ -127,6 +157,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "SkinRadar Demo",
     contentPreview: "复盘场景为本地模拟文本，不对应真实赛事、队伍或比赛暂停。",
+    contentSections: [
+      "这份模拟复盘构造了一个不存在的暂停场景，用来展示赛事文章如何分段呈现背景、观察点和界面结论。",
+      "沟通节奏、回合条件与策略标签全部是固定演示文本，没有引用任何真实比赛语音、战术或赛后资料。",
+      "文章只用于检查赛事类详情页在不同屏幕上的层级和可读性，不提供比赛分析或执教建议。",
+    ],
   },
   {
     id: "demo-news-map-pool-notes",
@@ -145,6 +180,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "Local Mock News",
     contentPreview: "所有地图池和训练安排均为虚构示例，不代表任何真实战队准备情况。",
+    contentSections: [
+      "本地模拟稿以虚构训练日志展示地图池记录可以如何按日期、标签和阵容备注组织为简洁段落。",
+      "日志内容没有对应真实战队、地图选择或练习时间，也不说明任何队伍正在准备特定赛事。",
+      "这些段落只帮助验证较长正文、元信息侧栏与相关文章卡片的组合，不构成训练方法建议。",
+    ],
   },
   {
     id: "demo-news-workshop-navigation",
@@ -163,6 +203,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "Demo Editorial",
     contentPreview: "导航方案是产品界面演示，不代表真实客户端已经或将要提供这些功能。",
+    contentSections: [
+      "这篇演示专栏把练习工坊设想为若干虚构入口，用于说明版本类内容如何呈现导航目标和界面约束。",
+      "所有入口名称、筛选方式与操作顺序都是本地产品示例，不代表真实 CS2 客户端功能或开发计划。",
+      "模拟正文通过三段短文检查阅读体验，并明确将界面设想与真实公告、发布日期和功能承诺分开。",
+    ],
   },
   {
     id: "demo-news-collection-metrics",
@@ -181,6 +226,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "SkinRadar Demo",
     contentPreview: "指标只用于测试新闻卡片，不代表真实收藏规模、价格或用户偏好。",
+    contentSections: [
+      "本地模拟市场观察使用虚构收藏分类，演示详情页如何解释指标用途、标签关系和展示限制。",
+      "文章没有引入真实饰品价格、用户收藏量或市场平台信息，所有维度都只是固定的界面测试内容。",
+      "最后一段用于确认免责声明和相关推荐保持可见，并提醒读者不要把演示指标当作市场趋势或购买依据。",
+    ],
   },
   {
     id: "demo-news-beginner-cards",
@@ -199,6 +249,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "Local Mock News",
     contentPreview: "知识卡片内容完全虚构，仅用于展示社区目录和标签筛选体验。",
+    contentSections: [
+      "这篇模拟社区稿将不存在的新手主题整理成短知识卡片，用来展示摘要、标签与阅读时间之间的层级。",
+      "卡片中的练习步骤和社区提示均为虚构内容，没有引用官方指南、真实活动或玩家统计资料。",
+      "正文仅服务于响应式排版与目录跳转验证，不应被视为完整教程、客户端说明或社区公告。",
+    ],
   },
   {
     id: "demo-news-equipment-hierarchy",
@@ -217,6 +272,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "Demo Editorial",
     contentPreview: "文中不使用真实品牌或选手配置，也不构成任何外设购买建议。",
+    contentSections: [
+      "本地演示文章使用中性的模拟外设字段，说明选手类内容如何区分设备类别、说明文字与数据边界。",
+      "示例没有采用真实品牌、型号、选手配置或价格，因此既不是职业资料，也不构成外设购买建议。",
+      "这些段落用于测试长型号和说明文字的安全换行，同时保持详情页在手机端没有横向溢出。",
+    ],
   },
   {
     id: "demo-news-map-rotation-framework",
@@ -235,6 +295,11 @@ export const mockNews = [
     image: null,
     sourceLabel: "SkinRadar Demo",
     contentPreview: "地图轮换仅为页面演示设定，不对应任何真实赛事规则或赛程变化。",
+    contentSections: [
+      "这份模拟赛事专题构造了不存在的地图轮换顺序，用于展示时间、策略和播报标签在正文中的组织方式。",
+      "轮换条件、选择逻辑与日期全部是固定演示内容，没有对应真实赛事规则、赛程调整或主办方决定。",
+      "文章结尾仅检验相关文章如何根据分类和共享标签稳定排序，不对现实地图池变化作出预测。",
+    ],
   },
   {
     id: "demo-news-training-challenge-flow",
@@ -253,5 +318,10 @@ export const mockNews = [
     image: null,
     sourceLabel: "Local Mock News",
     contentPreview: "挑战流程为虚构产品示例，不代表真实社区活动、奖励或参与规则。",
+    contentSections: [
+      "本地模拟社区实验以不存在的训练挑战为例，展示参与说明、工坊标签和阶段提示可以如何分段呈现。",
+      "挑战名称、参与流程与反馈内容全部为虚构文本，不代表真实活动、奖励、资格条件或社区承诺。",
+      "正文只用于测试详情页、返回链接和相关推荐在不同屏幕上的体验，不构成活动邀请或训练建议。",
+    ],
   },
 ] satisfies readonly NewsArticle[];

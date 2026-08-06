@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { NewsArticle } from "@/types/news";
 
 interface FeaturedNewsProps {
@@ -59,6 +60,12 @@ export default function FeaturedNews({ articles }: FeaturedNewsProps) {
                   {dateFormatter.format(new Date(article.publishedAt))}
                 </time>
               </p>
+              <Link
+                href={`/news/${article.slug}`}
+                className="mt-5 inline-flex rounded-lg border border-orange-500/50 px-3 py-2 text-sm font-semibold text-orange-300 transition-colors hover:bg-orange-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50"
+              >
+                阅读模拟详情
+              </Link>
             </article>
           ))}
         </div>

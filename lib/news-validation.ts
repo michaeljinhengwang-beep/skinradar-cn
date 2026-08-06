@@ -84,6 +84,39 @@ export function validateMockNews(
     if (!isNonEmptyString(article.contentPreview)) {
       addError(`${path}.contentPreview`, "must not be empty");
     }
+    if (!Array.isArray(article.contentSections)) {
+      addError(`${path}.contentSections`, "must be an array");
+    } else {
+      if (article.contentSections.length === 0) {
+        addError(`${path}.contentSections`, "must not be empty");
+      }
+      if (article.contentSections.length < 2) {
+        addError(
+          `${path}.contentSections`,
+          "must contain at least 2 sections",
+        );
+      }
+
+      const normalizedSections = new Set<string>();
+      article.contentSections.forEach((section, sectionIndex) => {
+        const sectionPath = `${path}.contentSections[${sectionIndex}]`;
+
+        if (!isNonEmptyString(section)) {
+          addError(sectionPath, "must not be empty");
+          return;
+        }
+
+        const normalizedSection = section.trim();
+        if (normalizedSection.length < 20 || normalizedSection.length > 500) {
+          addError(sectionPath, "must contain between 20 and 500 characters");
+        }
+        if (normalizedSections.has(normalizedSection)) {
+          addError(sectionPath, "duplicates another content section");
+        } else {
+          normalizedSections.add(normalizedSection);
+        }
+      });
+    }
     if (!NEWS_CATEGORIES.includes(article.category)) {
       addError(`${path}.category`, "must be an allowed news category");
     }

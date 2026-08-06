@@ -132,3 +132,40 @@ export function getFeaturedNews(
     "newest",
   );
 }
+
+function countSharedTags(
+  first: NewsArticle,
+  second: NewsArticle,
+): number {
+  const secondTags = new Set(second.tags);
+  return first.tags.filter((tag) => secondTags.has(tag)).length;
+}
+
+export function getRelatedNews(
+  articles: readonly NewsArticle[],
+  currentArticle: NewsArticle,
+  limit: number,
+): NewsArticle[] {
+  if (!Number.isFinite(limit) || limit <= 0) {
+    return [];
+  }
+
+  return stableSort(
+    articles.filter((article) => article.id !== currentArticle.id),
+    (first, second) => {
+      const firstCategoryMatch = first.category === currentArticle.category;
+      const secondCategoryMatch = second.category === currentArticle.category;
+
+      if (firstCategoryMatch !== secondCategoryMatch) {
+        return firstCategoryMatch ? -1 : 1;
+      }
+
+      return (
+        countSharedTags(second, currentArticle) -
+          countSharedTags(first, currentArticle) ||
+        second.publishedAt.localeCompare(first.publishedAt) ||
+        compareText(first.slug, second.slug)
+      );
+    },
+  ).slice(0, Math.floor(limit));
+}

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { NewsArticle } from "@/types/news";
 
 interface NewsCardProps {
@@ -80,6 +81,13 @@ export default function NewsCard({ article }: NewsCardProps) {
           </li>
         ))}
       </ul>
+
+      <Link
+        href={`/news/${article.slug}`}
+        className="mt-5 inline-flex self-start rounded-lg border border-orange-500/50 px-3 py-2 text-sm font-semibold text-orange-300 transition-colors hover:bg-orange-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50"
+      >
+        查看模拟文章
+      </Link>
     </article>
   );
 }
