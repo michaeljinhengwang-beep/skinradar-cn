@@ -47,7 +47,17 @@ app/
   login/page.tsx
 components/
   home/
+    DemoDataNotice.tsx
+    DemoStats.tsx
+    FeatureOverview.tsx
+    FinalCallToAction.tsx
     HeroSection.tsx
+    HomeNewsCard.tsx
+    HomePlayerCard.tsx
+    HomeSkinCard.tsx
+    MarketPreview.tsx
+    NewsPreview.tsx
+    PlayerPreview.tsx
     StatCard.tsx
   layout/
     Navbar.tsx
@@ -82,6 +92,7 @@ data/
   mock-players.ts
   mock-news.ts
 lib/
+  home.ts
   market.ts
   market-validation.ts
   players.ts
@@ -90,6 +101,7 @@ lib/
   news-validation.ts
 public/
 tests/
+  home.test.ts
   market.test.ts
   players.test.ts
   news.test.ts
@@ -110,6 +122,9 @@ next.config.ts
 - 建立统一的深色主题、字体和响应式页面容器
 - 建立全站导航栏与页脚
 - 建立由独立组件组合的首页展示
+- 首页已整合市场、职业选手与新闻的轻量模拟预览和有效详情入口
+- 首页演示统计直接取自三个本地 mock 数据数组长度，避免虚构业务规模
+- 前端展示版已具备首页、目录与详情页之间的完整页面导航
 - 建立市场、职业选手、新闻和登录占位页
 - 建立市场页数据模型、本地模拟数据及客户端搜索、筛选和排序界面
 - 建立饰品结果卡片、响应式结果网格及空结果状态
@@ -129,7 +144,7 @@ next.config.ts
 
 ## 7. 当前页面
 
-- `/`：首页，包含产品介绍、无功能搜索框和模拟统计卡片
+- `/`：统一产品入口，包含模拟数据声明、功能概览、数据集统计，以及市场、选手和新闻轻量预览
 - `/market`：使用明确标注的本地模拟数据演示饰品搜索、筛选和排序
 - `/market/[id]`：展示单个模拟饰品的基础信息、模拟平台报价和模拟价格历史
 - `/players`：使用明确标注的虚构本地资料演示选手搜索、筛选、排序、模拟准星及完整外设配置
@@ -140,8 +155,8 @@ next.config.ts
 
 ## 8. 下一阶段计划
 
-1. 整合首页的市场、选手与新闻模块入口
-2. 进行真实数据接入前的部署准备和环境检查
+1. 进入 GitHub、Vercel、SEO 和部署准备
+2. 进行真实数据接入前的环境检查
 3. 设计市场数据加载状态与非 404 错误状态
 4. 确认真实数据源、更新频率与合规要求后定义服务端数据接口
 5. 为真实数据接入规划缓存、重试和降级策略
@@ -178,7 +193,7 @@ next.config.ts
 - `components/players`：选手目录筛选、状态管理与结果展示组件
 - `components/news`：新闻精选区、目录筛选、状态管理与结果展示组件
 - `data`：明确标注用途的本地模拟数据
-- `lib`：不依赖 React 或浏览器 API 的市场、选手和新闻查询、排序与数据验证纯函数
+- `lib`：不依赖 React 或浏览器 API 的首页预览选择、市场、选手和新闻查询、排序与数据验证纯函数
 - `public`：可直接公开访问的静态资源
 - `tests`：使用 Node.js 内置测试运行器执行的确定性自动化测试
 - `types`：跨组件共享的业务数据模型与联合类型
@@ -205,10 +220,11 @@ next.config.ts
 - 选手页准星代码及全部外设型号均为虚构展示数据，不代表真实选手配置，也不构成外设购买建议
 - 新闻页标题、摘要、作者、来源标签、日期和热度均为虚构展示数据，不代表 Valve、HLTV、战队、选手或新闻媒体发布的真实内容，不可作为事实引用
 - 新闻详情页正文和相关文章推荐同样只使用本地虚构数据；推荐结果不代表真实媒体判断
+- 首页统计、市场预览、选手预览和新闻预览均来自本地模拟数据；首页仅提供轻量内容，筛选与完整详情保留在对应模块
 
 ## 14. 真实数据说明
 
-在真实 API、数据库或经过验证的数据源接入前，任何模拟数据都不能描述为真实平台数据、实时数据或实际市场行情。首页当前显示的统计数字是前端布局用模拟展示数据，不代表 SkinRadar 已具备对应的数据覆盖与更新能力。
+在真实 API、数据库或经过验证的数据源接入前，任何模拟数据都不能描述为真实平台数据、实时数据或实际市场行情。首页当前显示的统计数字直接来自本地 mock 数组长度，只代表演示数据集规模，不代表 SkinRadar 已具备对应的数据覆盖与更新能力。
 
 ## 15. 自动化验证
 
@@ -216,12 +232,14 @@ next.config.ts
 - 模拟数据验证位于 `lib/market-validation.ts`，返回包含字段路径和具体原因的结构化错误列表
 - 选手查询与排序入口位于 `lib/players.ts`，选手模拟数据验证位于 `lib/player-validation.ts`
 - 新闻查询与排序入口位于 `lib/news.ts`，新闻模拟数据验证位于 `lib/news-validation.ts`
+- 首页稳定预览选择入口位于 `lib/home.ts`，覆盖不同武器、战队和主要角色，并优先展示模拟精选新闻
 - 运行 `npm run test` 执行 `tests/*.test.ts` 中的全部测试
 - 市场测试覆盖有效与无效 ID、搜索、单项及组合筛选、空结果、全部排序方式、输入不可变性、报价与历史排序以及模拟数据完整性
 - 选手测试覆盖 ID 查找、搜索、单项及组合筛选、空结果、全部排序方式、输入不可变性和模拟资料完整性
 - 选手详情测试覆盖全部静态 ID、ID 唯一性及详情页所需字段完整性；生产构建验证 `generateStaticParams`、动态 metadata 和自定义 `notFound`
 - 新闻测试覆盖 ID 与 slug 查找、中文和英文搜索、组合筛选、五种排序、精选结果、输入不可变性及模拟数据完整性
 - 新闻详情测试覆盖全部静态 slug、详情字段、模拟正文验证、相关文章优先级、推荐稳定性和输入不可变性；生产构建验证动态 metadata 与自定义 `notFound`
+- 首页测试覆盖 limit 边界、结果稳定性、输入不可变性、预览多样性、模拟精选优先级及详情标识有效性
 - 当前 Node.js 24 可直接运行 TypeScript 测试，因此使用内置 `node:test` 和 `node:assert/strict`，无需引入 Vitest、Jest、tsx 或 ts-node
 - 尚未引入第三方测试框架，因为当前测试对象均为不依赖 DOM 的纯函数；浏览器交互测试应在明确工具和范围后单独规划
 - 下一阶段开发前必须保持 `npm run test`、`npm run lint` 和 `npm run build` 全部通过

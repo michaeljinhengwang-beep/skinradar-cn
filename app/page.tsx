@@ -1,30 +1,39 @@
+import DemoDataNotice from "@/components/home/DemoDataNotice";
+import DemoStats from "@/components/home/DemoStats";
+import FeatureOverview from "@/components/home/FeatureOverview";
+import FinalCallToAction from "@/components/home/FinalCallToAction";
 import HeroSection from "@/components/home/HeroSection";
-import StatCard from "@/components/home/StatCard";
-
-const stats = [
-  // 模拟展示数据，仅用于当前前端布局，不代表平台已接入真实数据。
-  { label: "追踪饰品", value: "10,000+" },
-  { label: "覆盖市场", value: "8 个" },
-  { label: "价格更新", value: "每日" },
-];
+import MarketPreview from "@/components/home/MarketPreview";
+import NewsPreview from "@/components/home/NewsPreview";
+import PlayerPreview from "@/components/home/PlayerPreview";
+import { mockNews } from "@/data/mock-news";
+import { mockPlayers } from "@/data/mock-players";
+import { mockSkins } from "@/data/mock-skins";
+import {
+  getHomepageNewsPreview,
+  getHomepagePlayerPreview,
+  getHomepageSkinPreview,
+} from "@/lib/home";
 
 export default function Home() {
+  const skinPreview = getHomepageSkinPreview(mockSkins, 4);
+  const playerPreview = getHomepagePlayerPreview(mockPlayers, 3);
+  const newsPreview = getHomepageNewsPreview(mockNews, 3);
+
   return (
     <>
       <HeroSection />
-
-      <section
-        aria-label="平台数据概览"
-        className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 pb-16 sm:px-6 sm:pb-20 md:grid-cols-3"
-      >
-        {stats.map((stat) => (
-          <StatCard
-            key={stat.label}
-            label={stat.label}
-            value={stat.value}
-          />
-        ))}
-      </section>
+      <DemoDataNotice />
+      <DemoStats
+        skinCount={mockSkins.length}
+        playerCount={mockPlayers.length}
+        newsCount={mockNews.length}
+      />
+      <FeatureOverview />
+      <MarketPreview skins={skinPreview} />
+      <PlayerPreview players={playerPreview} />
+      <NewsPreview articles={newsPreview} />
+      <FinalCallToAction />
     </>
   );
 }
