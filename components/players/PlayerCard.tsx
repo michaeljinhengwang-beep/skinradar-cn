@@ -36,7 +36,7 @@ export default function PlayerCard({ player }: PlayerCardProps) {
             {player.nickname}
           </p>
           <p className="mt-1 text-xs font-semibold tracking-[0.2em] text-orange-300 uppercase">
-            本地模拟选手
+            模拟数据
           </p>
         </div>
       </div>
@@ -80,35 +80,76 @@ export default function PlayerCard({ player }: PlayerCardProps) {
           ))}
         </div>
 
-        <dl className="mt-5 grid grid-cols-2 gap-3 rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 text-sm sm:grid-cols-4">
-          <div>
-            <dt className="text-zinc-500">DPI</dt>
-            <dd className="mt-1 font-semibold text-zinc-100">{player.dpi}</dd>
-          </div>
-          <div>
-            <dt className="text-zinc-500">灵敏度</dt>
-            <dd className="mt-1 font-semibold text-zinc-100">
-              {player.sensitivity}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-zinc-500">eDPI</dt>
-            <dd className="mt-1 font-semibold text-zinc-100">
-              {player.effectiveDpi}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-zinc-500">分辨率</dt>
-            <dd className="mt-1 break-words font-semibold text-zinc-100">
-              {player.resolution}
-            </dd>
-          </div>
-        </dl>
+        <section className="mt-5 border-t border-zinc-800 pt-5">
+          <h3 className="text-sm font-semibold tracking-wide text-zinc-200">
+            游戏设置
+          </h3>
+          <dl className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-zinc-500">DPI</dt>
+              <dd className="mt-1 font-semibold text-zinc-100">
+                {player.dpi}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-zinc-500">灵敏度</dt>
+              <dd className="mt-1 font-semibold text-zinc-100">
+                {player.sensitivity}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-zinc-500">eDPI</dt>
+              <dd className="mt-1 font-semibold text-zinc-100">
+                {player.effectiveDpi}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-zinc-500">分辨率</dt>
+              <dd className="mt-1 break-words font-semibold text-zinc-100">
+                {player.resolution}
+              </dd>
+            </div>
+            <div className="min-w-0 sm:col-span-2">
+              <dt className="text-zinc-500">模拟准星代码</dt>
+              <dd className="mt-1 min-w-0">
+                <code className="block max-w-full break-all rounded-md border border-orange-500/20 bg-orange-500/10 px-2.5 py-2 text-xs leading-5 whitespace-normal text-orange-200">
+                  {player.crosshairCode}
+                </code>
+              </dd>
+            </div>
+          </dl>
+        </section>
 
-        <div className="mt-4 min-w-0 border-t border-zinc-800 pt-4 text-sm">
-          <p className="text-zinc-500">模拟鼠标</p>
-          <p className="break-words text-zinc-200">{player.mouse}</p>
-        </div>
+        <section className="mt-5 border-t border-zinc-800 pt-5">
+          <h3 className="text-sm font-semibold tracking-wide text-zinc-200">
+            外设配置
+          </h3>
+          <p className="mt-1 text-xs text-zinc-500">
+            以下型号均为虚构模拟信息，不构成购买建议。
+          </p>
+          <dl className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
+            <div className="min-w-0">
+              <dt className="text-zinc-500">鼠标</dt>
+              <dd className="break-words text-zinc-200">{player.mouse}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-zinc-500">键盘</dt>
+              <dd className="break-words text-zinc-200">{player.keyboard}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-zinc-500">鼠标垫</dt>
+              <dd className="break-words text-zinc-200">{player.mousepad}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-zinc-500">耳机</dt>
+              <dd className="break-words text-zinc-200">{player.headset}</dd>
+            </div>
+            <div className="min-w-0 sm:col-span-2">
+              <dt className="text-zinc-500">显示器</dt>
+              <dd className="break-words text-zinc-200">{player.monitor}</dd>
+            </div>
+          </dl>
+        </section>
       </div>
     </article>
   );

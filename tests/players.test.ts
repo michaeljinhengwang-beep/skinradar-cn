@@ -214,6 +214,99 @@ test("the complete simulated player dataset passes validation", () => {
   assert.deepEqual(validateMockPlayers(mockPlayers), []);
 });
 
+test("every simulated player has a mouse value", () => {
+  assert.ok(mockPlayers.every((player) => player.mouse.trim().length > 0));
+});
+
+test("every simulated player has a keyboard value", () => {
+  assert.ok(mockPlayers.every((player) => player.keyboard.trim().length > 0));
+});
+
+test("every simulated player has a mousepad value", () => {
+  assert.ok(mockPlayers.every((player) => player.mousepad.trim().length > 0));
+});
+
+test("every simulated player has a headset value", () => {
+  assert.ok(mockPlayers.every((player) => player.headset.trim().length > 0));
+});
+
+test("every simulated player has a monitor value", () => {
+  assert.ok(mockPlayers.every((player) => player.monitor.trim().length > 0));
+});
+
+test("every simulated player has a simulated crosshair code", () => {
+  assert.ok(
+    mockPlayers.every((player) => player.crosshairCode.trim().length > 0),
+  );
+});
+
+test("validation reports the precise empty keyboard path", () => {
+  const invalidPlayers: Player[] = mockPlayers.map((player) => ({
+    ...player,
+    roles: [...player.roles],
+  }));
+  invalidPlayers[2] = { ...invalidPlayers[2], keyboard: "   " };
+
+  assert.ok(
+    validateMockPlayers(invalidPlayers).some(
+      (error) =>
+        error.path === "mockPlayers[2].keyboard" &&
+        error.message === "must not be empty",
+    ),
+  );
+});
+
+test("validation reports the precise empty mousepad path", () => {
+  const invalidPlayers: Player[] = mockPlayers.map((player) => ({
+    ...player,
+    roles: [...player.roles],
+  }));
+  invalidPlayers[4] = { ...invalidPlayers[4], mousepad: "" };
+
+  assert.ok(
+    validateMockPlayers(invalidPlayers).some(
+      (error) =>
+        error.path === "mockPlayers[4].mousepad" &&
+        error.message === "must not be empty",
+    ),
+  );
+});
+
+test("validation reports the precise empty headset path", () => {
+  const invalidPlayers: Player[] = mockPlayers.map((player) => ({
+    ...player,
+    roles: [...player.roles],
+  }));
+  invalidPlayers[6] = { ...invalidPlayers[6], headset: "   " };
+
+  assert.ok(
+    validateMockPlayers(invalidPlayers).some(
+      (error) =>
+        error.path === "mockPlayers[6].headset" &&
+        error.message === "must not be empty",
+    ),
+  );
+});
+
+test("validation reports the precise invalid crosshair code path", () => {
+  const invalidPlayers: Player[] = mockPlayers.map((player) => ({
+    ...player,
+    roles: [...player.roles],
+  }));
+  invalidPlayers[8] = {
+    ...invalidPlayers[8],
+    crosshairCode: "REAL-CODE",
+  };
+
+  assert.ok(
+    validateMockPlayers(invalidPlayers).some(
+      (error) =>
+        error.path === "mockPlayers[8].crosshairCode" &&
+        error.message === "must match the simulated format DEMO-XXXX-00",
+    ),
+  );
+});
+
 test("validation reports the precise effectiveDpi path", () => {
   const invalidPlayers: Player[] = mockPlayers.map((player) => ({
     ...player,

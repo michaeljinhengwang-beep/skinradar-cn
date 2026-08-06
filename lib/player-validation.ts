@@ -13,7 +13,9 @@ export interface PlayerValidationError {
 
 const RESOLUTION_PATTERN = /^\d{3,4}x\d{3,4}$/;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
+const DEMO_CROSSHAIR_CODE_PATTERN = /^DEMO-[A-Z0-9]{4}-\d{2}$/;
 const EFFECTIVE_DPI_TOLERANCE = 0.001;
+const MAX_EQUIPMENT_NAME_LENGTH = 80;
 
 function isPositiveFinite(value: number): boolean {
   return Number.isFinite(value) && value > 0;
@@ -21,6 +23,10 @@ function isPositiveFinite(value: number): boolean {
 
 function isValidIsoDate(value: string): boolean {
   return ISO_DATE_PATTERN.test(value) && Number.isFinite(Date.parse(value));
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function isNeutralEquipmentName(value: string): boolean {
@@ -128,8 +134,13 @@ export function validateMockPlayers(
     if (!PLAYER_TEAMS.includes(player.team)) {
       addError(`${path}.team`, "must use an approved simulated team name");
     }
-    if (!player.crosshairCode.startsWith("DEMO-")) {
-      addError(`${path}.crosshairCode`, "must use the DEMO- prefix");
+    if (!isNonEmptyString(player.crosshairCode)) {
+      addError(`${path}.crosshairCode`, "must not be empty");
+    } else if (!DEMO_CROSSHAIR_CODE_PATTERN.test(player.crosshairCode.trim())) {
+      addError(
+        `${path}.crosshairCode`,
+        "must match the simulated format DEMO-XXXX-00",
+      );
     }
 
     const equipment = [
@@ -141,9 +152,22 @@ export function validateMockPlayers(
     ] as const;
 
     equipment.forEach(([field, value]) => {
-      if (!isNeutralEquipmentName(value)) {
+      const fieldPath = `${path}.${field}`;
+
+      if (!isNonEmptyString(value)) {
+        addError(fieldPath, "must not be empty");
+        return;
+      }
+      if (value.trim().length > MAX_EQUIPMENT_NAME_LENGTH) {
         addError(
-          `${path}.${field}`,
+          fieldPath,
+          `must be ${MAX_EQUIPMENT_NAME_LENGTH} characters or fewer`,
+        );
+        return;
+      }
+      if (!isNeutralEquipmentName(value.trim())) {
+        addError(
+          fieldPath,
           'must use a neutral "Demo" name or “未公开”',
         );
       }
