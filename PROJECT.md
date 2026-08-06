@@ -66,21 +66,32 @@ components/
     PlayerSettings.tsx
     PlayerEquipment.tsx
     PlayerStatusBadge.tsx
+  news/
+    NewsExplorer.tsx
+    NewsFilters.tsx
+    NewsCard.tsx
+    NewsGrid.tsx
+    FeaturedNews.tsx
 data/
   mock-skins.ts
   mock-players.ts
+  mock-news.ts
 lib/
   market.ts
   market-validation.ts
   players.ts
   player-validation.ts
+  news.ts
+  news-validation.ts
 public/
 tests/
   market.test.ts
   players.test.ts
+  news.test.ts
 types/
   market.ts
   player.ts
+  news.ts
 PROJECT.md
 package.json
 tsconfig.json
@@ -104,6 +115,8 @@ next.config.ts
 - 建立选手查询纯函数、数据完整性验证与自动化测试
 - 完善选手目录的模拟准星代码和鼠标、键盘、鼠标垫、耳机、显示器信息展示
 - 建立 12 个模拟选手动态详情页，使用 `generateStaticParams`、动态 metadata、自定义 `notFound` 及完整设置展示
+- 建立 14 条虚构模拟新闻、新闻目录、模拟精选区及客户端搜索、筛选和排序界面
+- 建立新闻查询纯函数、结构化数据验证和自动化测试
 - 建立基于 Node.js 内置测试运行器的无依赖自动化测试基线
 - 配置 TypeScript、Tailwind CSS 与 ESLint 基线
 
@@ -114,12 +127,12 @@ next.config.ts
 - `/market/[id]`：展示单个模拟饰品的基础信息、模拟平台报价和模拟价格历史
 - `/players`：使用明确标注的虚构本地资料演示选手搜索、筛选、排序、模拟准星及完整外设配置
 - `/players/[id]`：通过静态参数生成展示单个虚构选手的完整游戏设置、模拟准星和外设配置
-- `/news`：CS2 新闻占位页
+- `/news`：使用本地虚构内容演示新闻精选、搜索、分类、地区、标签筛选和排序
 - `/login`：账户功能占位页，不包含真实登录功能
 
 ## 8. 下一阶段计划
 
-1. 建立 CS2 新闻模块的数据模型、本地模拟数据和目录页面
+1. 建立 `/news/[slug]` 模拟新闻详情页
 2. 设计市场数据加载状态与非 404 错误状态
 3. 为市场和选手筛选交互规划浏览器级回归测试
 4. 确认真实数据源、更新频率与合规要求后定义服务端数据接口
@@ -155,8 +168,9 @@ next.config.ts
 - `components/layout`：跨页面共享的布局组件
 - `components/market`：市场页交互、筛选与饰品结果展示组件
 - `components/players`：选手目录筛选、状态管理与结果展示组件
+- `components/news`：新闻精选区、目录筛选、状态管理与结果展示组件
 - `data`：明确标注用途的本地模拟数据
-- `lib`：不依赖 React 或浏览器 API 的市场和选手查询、排序与数据验证纯函数
+- `lib`：不依赖 React 或浏览器 API 的市场、选手和新闻查询、排序与数据验证纯函数
 - `public`：可直接公开访问的静态资源
 - `tests`：使用 Node.js 内置测试运行器执行的确定性自动化测试
 - `types`：跨组件共享的业务数据模型与联合类型
@@ -181,6 +195,7 @@ next.config.ts
 - 市场页当前的饰品价格、涨跌幅、数量、平台报价和日期均为本地模拟值
 - 选手页当前的昵称、姓名、战队、角色、参数和外设均为虚构本地模拟值，不代表真实职业选手或 HLTV 资料
 - 选手页准星代码及全部外设型号均为虚构展示数据，不代表真实选手配置，也不构成外设购买建议
+- 新闻页标题、摘要、作者、来源标签、日期和热度均为虚构展示数据，不代表 Valve、HLTV、战队、选手或新闻媒体发布的真实内容，不可作为事实引用
 
 ## 14. 真实数据说明
 
@@ -191,10 +206,12 @@ next.config.ts
 - 市场查询与排序入口位于 `lib/market.ts`，负责 ID 查找、关键词搜索、组合筛选、饰品排序、平台报价排序和价格历史排序
 - 模拟数据验证位于 `lib/market-validation.ts`，返回包含字段路径和具体原因的结构化错误列表
 - 选手查询与排序入口位于 `lib/players.ts`，选手模拟数据验证位于 `lib/player-validation.ts`
+- 新闻查询与排序入口位于 `lib/news.ts`，新闻模拟数据验证位于 `lib/news-validation.ts`
 - 运行 `npm run test` 执行 `tests/*.test.ts` 中的全部测试
 - 市场测试覆盖有效与无效 ID、搜索、单项及组合筛选、空结果、全部排序方式、输入不可变性、报价与历史排序以及模拟数据完整性
 - 选手测试覆盖 ID 查找、搜索、单项及组合筛选、空结果、全部排序方式、输入不可变性和模拟资料完整性
 - 选手详情测试覆盖全部静态 ID、ID 唯一性及详情页所需字段完整性；生产构建验证 `generateStaticParams`、动态 metadata 和自定义 `notFound`
+- 新闻测试覆盖 ID 与 slug 查找、中文和英文搜索、组合筛选、五种排序、精选结果、输入不可变性及模拟数据完整性
 - 当前 Node.js 24 可直接运行 TypeScript 测试，因此使用内置 `node:test` 和 `node:assert/strict`，无需引入 Vitest、Jest、tsx 或 ts-node
 - 尚未引入第三方测试框架，因为当前测试对象均为不依赖 DOM 的纯函数；浏览器交互测试应在明确工具和范围后单独规划
 - 下一阶段开发前必须保持 `npm run test`、`npm run lint` 和 `npm run build` 全部通过
