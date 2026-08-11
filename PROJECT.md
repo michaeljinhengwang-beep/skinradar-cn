@@ -41,6 +41,7 @@ app/
   robots.ts
   sitemap.ts
   globals.css
+  api/internal/market-sync/route.ts
   market/page.tsx
   market/[id]/page.tsx
   market/[id]/not-found.tsx
@@ -123,6 +124,7 @@ lib/
     supabase-market-repository.ts
     supabase-market-sync-store.ts
   services/
+    internal-market-sync-handler.ts
     market-data-service.ts
     market-sync-service.ts
   supabase/
@@ -130,6 +132,8 @@ lib/
     database-adapter.ts
     development.ts
     market-sync-lock.ts
+    sync-smoke-safety.ts
+    write-smoke-safety.ts
     server.ts
     server-config.ts
     server-options.ts
@@ -143,7 +147,10 @@ tests/
   providers.test.ts
   market-repository.test.ts
   market-persistence.test.ts
+  internal-market-sync.test.ts
   supabase-development.test.ts
+  supabase-sync-smoke-safety.test.ts
+  supabase-write-safety.test.ts
 types/
   market.ts
   player.ts
@@ -200,6 +207,9 @@ next.config.ts
 - 接入官方 `@supabase/supabase-js` 的 server-only client 和数据库 adapter，并建立只读 connectivity check
 - 新 Supabase 项目优先使用 `SUPABASE_SECRET_KEY`，同时保留 legacy `SUPABASE_SERVICE_ROLE_KEY` 兼容读取
 - 为异常 `running` 同步增加默认 900 秒的 stale lock 标记失败与安全回收机制
+- 完成 Supabase 开发数据库三表 connectivity、隔离写入及 Mock Provider 端到端同步验证，并精确清理全部 smoke-test 数据
+- 建立受 `CRON_SECRET` Bearer 鉴权保护的内部 `POST /api/internal/market-sync` 入口
+- 内部同步默认关闭，Phase 9 仅允许 `mock` Provider；尚未启用 Vercel Cron 或真实 CSFloat 同步
 
 ## 7. 当前页面
 
@@ -214,10 +224,10 @@ next.config.ts
 
 ## 8. 下一阶段计划
 
-1. 在独立 Supabase 开发项目的 SQL Editor 手动审核并执行 migration
-2. 用户在 `.env.local` 自行配置 `SUPABASE_URL` 与 `SUPABASE_SECRET_KEY`
-3. 获得明确联网授权后，仅执行一次只读数据库 connectivity smoke test
-4. 部署阶段确认计划限制后，再决定 scheduled sync cadence 和受保护 route
+1. 保持首次生产部署 `MARKET_SYNC_ENABLED=false`，确认 `CRON_SECRET` 与其他 secret 分离
+2. Phase 10 在明确授权下对受保护 route 进行一次受控 smoke test
+3. Route 验证稳定后，再独立评审 Vercel Cron cadence、运行超时和告警策略
+4. CSFloat 同步必须在后续阶段单独解除 Provider 安全门并重新审核
 5. 持久化同步验证稳定后，再规划页面数据源切换；在此之前页面继续使用 mock
 
 ## 9. 编码规范
@@ -292,11 +302,11 @@ next.config.ts
 
 Market Data Provider 架构已经建立，当前默认 Provider 和页面数据源仍为 `mock` / `mockSkins`。项目仅依据官方文档支持 CSFloat `GET /api/v1/listings` 只读请求，并对 `unknown` JSON 进行运行时解析后再经过 Normalizer；自动测试使用注入的假 `fetch`，不依赖真实网络。2026-08-11 曾执行一次无 API key 的 `GET https://csfloat.com/api/v1/listings?limit=1` 兼容性验证，当前请求环境返回 HTTP 403，未取得 listings 数组，因此 Phase 2 parser 尚未被真实 listing 完整验证，也没有据此放松校验。API secret 只能由服务器端环境变量读取，不得传入 Client Component。当前没有交易写操作，也尚未将真实数据接入生产页面；下一步是在隔离的开发环境验证持久化 adapter 和同步事务边界。
 
-Market Repository 架构现已建立：Memory Repository 仅用于开发和架构验证，保存的是经过 Normalizer 的 SkinRadar 内部 listing，并通过 envelope 追踪 source、fetchedAt、expiresAt、stale 和 fallback。Service 支持 fresh cache、同步刷新、失败时保留 stale cache，以及无缓存时明确标记的 mock fallback。持久化 adapter contract 与 scheduled-sync-compatible Service 已完成，但数据库和 cron 尚未接入，生产 `/market` 仍直接使用 `mockSkins`。
+Market Repository 架构现已建立：Memory Repository 仅用于开发和架构验证，保存的是经过 Normalizer 的 SkinRadar 内部 listing，并通过 envelope 追踪 source、fetchedAt、expiresAt、stale 和 fallback。Service 支持 fresh cache、同步刷新、失败时保留 stale cache，以及无缓存时明确标记的 mock fallback。持久化 adapter 与 Sync Service 已在开发 Supabase 上通过隔离 smoke test，但生产 `/market` 仍直接使用 `mockSkins`。
 
 Persistent Market Repository 以 Supabase Postgres 为目标，migration 位于 `supabase/migrations`，必须由用户在开发项目 SQL Editor 手动执行。数据库只保存标准化 listing、cache state 和脱敏 sync run，不保存第三方 raw response、卖家资料或 secret；RLS 已启用，anon/authenticated 默认无表权限，仅服务器 secret/legacy service role 可操作。`market_listings` 使用 `(provider, external_id)` 唯一键，写入通过事务型 RPC upsert listings 与 cache metadata；金额存为 `NUMERIC(24,8)` 十进制主单位，读取 RPC 转为字符串以避免数据库金额先经过 JavaScript 浮点。官方 Supabase SDK client 已封装在 server-only DAL，优先读取 `SUPABASE_SECRET_KEY`，仅在缺失时兼容 legacy `SUPABASE_SERVICE_ROLE_KEY`，且关闭 auth session 持久化。
 
-同步并发的最终保证仍是 `market_sync_runs` 每 Provider 仅允许一条 `running` 记录的部分唯一索引。`MARKET_SYNC_LOCK_TIMEOUT_SECONDS` 默认 900 秒；数据库事务会把超时任务标记为 `failed` 与 `STALE_SYNC_RECOVERED` 后创建新任务，不删除历史记录，active lock 或并发竞态则返回不可获取。当前只读 connectivity check 可验证三张表但未对公网暴露；尚未连接真实 Supabase、未执行 migration、未创建 internal route、未启用 scheduled sync，生产页面仍使用 mock。
+同步并发的最终保证仍是 `market_sync_runs` 每 Provider 仅允许一条 `running` 记录的部分唯一索引。`MARKET_SYNC_LOCK_TIMEOUT_SECONDS` 默认 900 秒；数据库事务会把超时任务标记为 `failed` 与 `STALE_SYNC_RECOVERED` 后创建新任务，不删除历史记录，active lock 或并发竞态则返回不可获取。开发 Supabase 已完成真实 connectivity、隔离写入和一次 Mock Provider 端到端同步验证。内部 route 仅接受 POST 和 Bearer `CRON_SECRET`，默认 `MARKET_SYNC_ENABLED=false`，Phase 9 仅允许 `MARKET_SYNC_PROVIDER=mock`；Cron 与 CSFloat 同步均未启用，生产页面仍使用 mock。
 
 ## 15. 自动化验证
 
@@ -317,6 +327,7 @@ Persistent Market Repository 以 Supabase Postgres 为目标，migration 位于 
 - 安全报价服务测试覆盖成功来源、限流/不可用降级、无效响应拒绝及 mock 来源标识
 - Repository 测试覆盖内存隔离、TTL 边界、刷新、stale cache、fallback、无效响应保护和来源追踪
 - 持久化测试覆盖新/旧密钥优先级、server client、row mapper、真实 SDK adapter、原子 upsert、只读 connectivity、Provider 隔离、sync run、stale lock、数据库唯一并发保护和 secret/raw 数据边界
+- 内部同步入口测试覆盖 Bearer 鉴权、timing-safe comparison、安全配置门、mock-only Provider、HTTP 状态映射、no-store、响应脱敏和禁用状态零副作用
 - 当前 Node.js 24 可直接运行 TypeScript 测试，因此使用内置 `node:test` 和 `node:assert/strict`，无需引入 Vitest、Jest、tsx 或 ts-node
 - 尚未引入第三方测试框架，因为当前测试对象均为不依赖 DOM 的纯函数；浏览器交互测试应在明确工具和范围后单独规划
 - 下一阶段开发前必须保持 `npm run test`、`npm run lint` 和 `npm run build` 全部通过

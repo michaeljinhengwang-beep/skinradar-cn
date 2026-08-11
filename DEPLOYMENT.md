@@ -17,7 +17,11 @@
 - [ ] `SUPABASE_SECRET_KEY` 未使用 `NEXT_PUBLIC_` 前缀，且未进入浏览器 bundle、日志或仓库
 - [ ] 旧项目如暂用 `SUPABASE_SERVICE_ROLE_KEY`，已明确将其限制为 legacy compatibility
 - [ ] 已设置仅服务器使用的 `MARKET_SYNC_LOCK_TIMEOUT_SECONDS`，默认建议 900 秒
-- [ ] 未来启用内部同步 route 时，已单独设置 `CRON_SECRET`；不得与 CSFloat 或 Supabase secret 混用
+- [ ] 已为内部同步 route 单独设置 `CRON_SECRET`；不得与 CSFloat 或 Supabase secret 混用
+- [ ] `CRON_SECRET` 未使用 `NEXT_PUBLIC_` 前缀，且未进入日志、响应或仓库
+- [ ] 首次生产部署保持 `MARKET_SYNC_ENABLED=false`
+- [ ] `MARKET_SYNC_PROVIDER=mock`；Phase 9 不允许通过内部 route 触发 CSFloat
+- [ ] 尚未配置 Vercel Cron；启用 schedule 必须作为后续独立变更审核
 - [ ] 仓库中没有 API key、Token、Cookie、个人信息或本地绝对路径
 - [ ] 当前版本不加载分析、广告或第三方脚本
 

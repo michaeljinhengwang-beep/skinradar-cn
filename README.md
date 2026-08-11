@@ -6,7 +6,7 @@ SkinRadar CN 是面向中文 CS2 用户的前端产品展示项目，当前提�
 
 项目已形成可构建、可测试的 Next.js 前端展示版。全部饰品报价、价格历史、选手资料、外设配置和新闻内容均为本地模拟数据，不代表真实平台、职业选手、HLTV、Valve 或媒体信息，也不构成购买或投资建议。
 
-当前版本没有接入真实 API、数据库、账户、收藏、价格提醒、购买、分析或广告功能，也不收集用户个人数据。
+当前生产页面没有接入真实 API 或数据库数据，也没有账户、收藏、价格提醒、购买、分析或广告功能，不收集用户个人数据。开发数据库仅用于经过明确授权的隔离架构验证。
 
 ## 技术栈
 
@@ -75,6 +75,9 @@ SUPABASE_SECRET_KEY=
 # Legacy compatibility only
 SUPABASE_SERVICE_ROLE_KEY=
 MARKET_SYNC_LOCK_TIMEOUT_SECONDS=900
+CRON_SECRET=
+MARKET_SYNC_ENABLED=false
+MARKET_SYNC_PROVIDER=mock
 ```
 
 未设置时会安全回退到 `http://localhost:3000`。Vercel 部署后应改为已确认的正式域名，并重新部署。不要把 API key、Token 或其他秘密放入 `NEXT_PUBLIC_` 变量；`.env.local` 不应提交 Git。
@@ -91,7 +94,13 @@ MARKET_SYNC_LOCK_TIMEOUT_SECONDS=900
 
 项目已准备 Supabase Postgres schema、官方 `@supabase/supabase-js` 服务器 client、持久化 Repository/Sync Store adapter、row mapper 和只读 connectivity check。新项目优先在服务器环境使用 `SUPABASE_SECRET_KEY`，`SUPABASE_SERVICE_ROLE_KEY` 仅作为 legacy compatibility；两者都不得使用 `NEXT_PUBLIC_` 前缀。真实值只放在本地 `.env.local` 或 Vercel Environment Variables，不得提交仓库。
 
-数据库尚未连接，migration 也不会由构建自动执行。开发者应在 Supabase Dashboard 的 SQL Editor 中手动执行 `supabase/migrations/20260811000000_create_market_tables.sql`，配置环境变量后再单独授权只读 connectivity smoke test。市场页面仍使用本地 `mockSkins`，scheduled sync 和真实市场同步均未启用。
+开发 Supabase 已完成三表 connectivity、隔离写入和 Mock Provider 端到端同步验证，所有 smoke-test 数据均已精确清理。migration 仍不会由构建自动执行，市场页面继续使用本地 `mockSkins`，生产真实市场同步尚未启用。
+
+## Internal Sync Status
+
+项目提供仅接受 `POST` 的 `/api/internal/market-sync`，使用 `Authorization: Bearer <CRON_SECRET>` 进行服务器端鉴权。所有响应均为 `no-store`，且只返回脱敏状态。
+
+内部同步默认由 `MARKET_SYNC_ENABLED=false` 关闭；非法值同样视为关闭。Phase 9 的 `MARKET_SYNC_PROVIDER` 仅允许 `mock`，即使其他配置指向 CSFloat，该入口也不会构造或调用 CSFloat Provider。Vercel Cron 尚未配置，首次生产部署必须保持同步关闭。
 
 ## 测试与构建
 
@@ -137,7 +146,8 @@ npm run start
 
 - 所有内容均为本地模拟数据，没有实时价格或官方数据来源。
 - 登录、注册、收藏、提醒和购买均未实现。
-- 没有数据库、远程 API、分析 SDK、广告、Cookie 或第三方脚本。
+- 生产页面不读取开发数据库；内部同步入口默认关闭，且未启用 Cron。
+- 没有分析 SDK、广告、Cookie 或浏览器端第三方脚本。
 - 没有准备远程 Open Graph 分享图片或完整离线 PWA 能力。
 
 ## 后续计划
