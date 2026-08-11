@@ -106,6 +106,12 @@ lib/
   player-validation.ts
   news.ts
   news-validation.ts
+  providers/
+    errors.ts
+    market-provider.ts
+    mock-market-provider.ts
+    csfloat-market-provider.ts
+    normalizers/market.ts
 public/
 tests/
   home.test.ts
@@ -113,10 +119,12 @@ tests/
   players.test.ts
   news.test.ts
   site.test.ts
+  providers.test.ts
 types/
   market.ts
   player.ts
   news.ts
+  data-provider.ts
 PROJECT.md
 package.json
 tsconfig.json
@@ -151,6 +159,7 @@ next.config.ts
 - 配置 TypeScript、Tailwind CSS 与 ESLint 基线
 - 建立集中站点配置、页面 metadata、sitemap、robots 和 Web App Manifest
 - 建立全局 404、错误边界、环境变量模板和 Vercel 上线文档
+- 建立 Market Data Provider、统一外部报价模型、Normalizer、Mock 适配器与 CSFloat 未联网骨架
 
 ## 7. 当前页面
 
@@ -165,11 +174,11 @@ next.config.ts
 
 ## 8. 下一阶段计划
 
-1. 手动创建 GitHub 仓库并完成 Vercel 首次部署
-2. 绑定正式域名并回填 `NEXT_PUBLIC_SITE_URL`
-3. 设计市场数据加载状态与非 404 错误状态
-4. 确认真实数据源、更新频率与合规要求后定义服务端数据接口
-5. 为真实数据接入规划缓存、重试和降级策略
+1. 根据官方文档进行 CSFloat API 端点、鉴权和响应结构的独立技术验证
+2. 为经过验证的第三方响应建立运行时校验与准确的 Provider 适配
+3. 设计多币种展示、换算来源与更新时间规则，不进行隐式汇率换算
+4. Provider 验证稳定后，再规划页面数据源切换与错误降级
+5. 后续评估数据库缓存、定时同步、重试和限流策略
 
 ## 9. 编码规范
 
@@ -204,6 +213,7 @@ next.config.ts
 - `components/news`：新闻精选区、目录筛选、状态管理与结果展示组件
 - `data`：明确标注用途的本地模拟数据
 - `lib`：不依赖 React 或浏览器 API 的站点配置、首页预览选择、市场、选手和新闻查询、排序与数据验证纯函数
+- `lib/providers`：服务器端市场数据源选择、Provider 适配、错误边界和外部报价标准化纯逻辑
 - `public`：可直接公开访问的静态资源
 - `tests`：使用 Node.js 内置测试运行器执行的确定性自动化测试
 - `types`：跨组件共享的业务数据模型与联合类型
@@ -236,6 +246,8 @@ next.config.ts
 
 在真实 API、数据库或经过验证的数据源接入前，任何模拟数据都不能描述为真实平台数据、实时数据或实际市场行情。首页当前显示的统计数字直接来自本地 mock 数组长度，只代表演示数据集规模，不代表 SkinRadar 已具备对应的数据覆盖与更新能力。
 
+Market Data Provider 架构已经建立，但当前默认 Provider 和页面数据源仍为 `mock` / `mockSkins`。CSFloat 真实连接尚未启用，项目没有硬编码未经确认的端点或响应结构。所有真实市场数据在进入业务层前必须经过 Normalizer；API secret 只能由服务器端环境变量读取，不得传入 Client Component。下一阶段仅进行 CSFloat API 技术验证，稳定后再考虑数据库缓存和定时同步。
+
 ## 15. 自动化验证
 
 - 市场查询与排序入口位于 `lib/market.ts`，负责 ID 查找、关键词搜索、组合筛选、饰品排序、平台报价排序和价格历史排序
@@ -251,6 +263,7 @@ next.config.ts
 - 新闻详情测试覆盖全部静态 slug、详情字段、模拟正文验证、相关文章优先级、推荐稳定性和输入不可变性；生产构建验证动态 metadata 与自定义 `notFound`
 - 首页测试覆盖 limit 边界、结果稳定性、输入不可变性、预览多样性、模拟精选优先级及详情标识有效性
 - 站点测试覆盖 URL 回退、导航、sitemap、robots 和 manifest 的确定性行为
+- Provider 测试覆盖选择规则、Mock 适配、CSFloat 缺少鉴权、错误脱敏、标准化不可变性、价格和货币处理
 - 当前 Node.js 24 可直接运行 TypeScript 测试，因此使用内置 `node:test` 和 `node:assert/strict`，无需引入 Vitest、Jest、tsx 或 ts-node
 - 尚未引入第三方测试框架，因为当前测试对象均为不依赖 DOM 的纯函数；浏览器交互测试应在明确工具和范围后单独规划
 - 下一阶段开发前必须保持 `npm run test`、`npm run lint` 和 `npm run build` 全部通过

@@ -67,9 +67,15 @@ npm run start
 
 ```env
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+MARKET_DATA_PROVIDER=mock
+CSFLOAT_API_KEY=
 ```
 
 未设置时会安全回退到 `http://localhost:3000`。Vercel 部署后应改为已确认的正式域名，并重新部署。不要把 API key、Token 或其他秘密放入 `NEXT_PUBLIC_` 变量；`.env.local` 不应提交 Git。
+
+## 真实数据接入状态
+
+当前线上页面仍直接使用明确标注的本地模拟数据，尚未启用生产真实市场数据。项目已准备 Market Data Provider 与 Normalizer 基线，`MARKET_DATA_PROVIDER` 默认且安全回退为 `mock`；`CSFLOAT_API_KEY` 仅供后续服务端技术验证使用，不得添加 `NEXT_PUBLIC_` 前缀或提交真实值。CSFloat Provider 当前只是未联网的安全骨架，不表示已完成正式接入。
 
 ## 测试与构建
 
