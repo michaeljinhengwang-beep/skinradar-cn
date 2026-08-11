@@ -4,7 +4,11 @@ import type {
 } from "../../../types/data-provider.ts";
 import { MarketProviderError } from "../errors.ts";
 
-function requireText(value: string, field: string, provider: ExternalMarketListing["provider"]) {
+function requireText(
+  value: string,
+  field: string,
+  provider: ExternalMarketListing["provider"],
+) {
   const normalizedValue = value.trim();
 
   if (normalizedValue.length === 0) {
@@ -16,6 +20,15 @@ function requireText(value: string, field: string, provider: ExternalMarketListi
   }
 
   return normalizedValue;
+}
+
+function normalizeOptionalText(value: string | null) {
+  if (value === null) {
+    return null;
+  }
+
+  const normalizedValue = value.trim();
+  return normalizedValue.length > 0 ? normalizedValue : null;
 }
 
 function isValidIsoTimestamp(value: string) {
@@ -61,9 +74,9 @@ export function normalizeExternalMarketListing(
       "marketHashName",
       listing.provider,
     ),
-    weapon: requireText(listing.weapon, "weapon", listing.provider),
-    skinName: requireText(listing.skinName, "skinName", listing.provider),
-    exterior: requireText(listing.exterior, "exterior", listing.provider),
+    weapon: normalizeOptionalText(listing.weapon),
+    skinName: normalizeOptionalText(listing.skinName),
+    exterior: normalizeOptionalText(listing.exterior),
     price: listing.price,
     currency: listing.currency,
     floatValue: listing.floatValue,
