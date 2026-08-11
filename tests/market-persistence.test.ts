@@ -317,6 +317,66 @@ test("Supabase Repository upserts by provider and external id", async () => {
   assert.equal(state.operations.includes("upsert-cache"), true);
 });
 
+test("Supabase Repository updates the same logical listing without a duplicate", async () => {
+  const smokeListing: NormalizedMarketListing = {
+    ...normalizedListing,
+    externalId: "skinradar-smoke-test-listing-001",
+    provider: "mock",
+    price: 123.45,
+    currency: "UNSPECIFIED",
+  };
+  const { client, state } = createFakeDatabaseClient();
+  const repository = createSupabaseMarketRepository({
+    client,
+    environment: SUPABASE_TEST_ENV,
+    cacheKey: "skinradar-smoke-test",
+    now: () => NOW,
+  });
+
+  await repository.replaceListings({
+    data: [smokeListing],
+    source: "mock",
+    fetchedAt: FETCHED_AT,
+    fallback: false,
+  });
+  await repository.replaceListings({
+    data: [{ ...smokeListing, price: 124.56 }],
+    source: "mock",
+    fetchedAt: FETCHED_AT,
+    fallback: false,
+  });
+
+  assert.equal(state.rows.length, 1);
+  assert.equal(state.rows[0]?.price_amount, "124.56000000");
+});
+
+test("Supabase Repository keeps smoke cache state on its isolated key", async () => {
+  const { client, state } = createFakeDatabaseClient();
+  const repository = createSupabaseMarketRepository({
+    client,
+    environment: SUPABASE_TEST_ENV,
+    cacheKey: "skinradar-smoke-test",
+    now: () => NOW,
+  });
+
+  await repository.replaceListings({
+    data: [
+      {
+        ...normalizedListing,
+        externalId: "skinradar-smoke-test-listing-001",
+        provider: "mock",
+      },
+    ],
+    source: "mock",
+    fetchedAt: FETCHED_AT,
+    fallback: false,
+  });
+
+  assert.equal(state.metadata?.cache_key, "skinradar-smoke-test");
+  assert.equal(state.metadata?.source, "mock");
+  assert.equal((await repository.getMetadata())?.source, "mock");
+});
+
 test("a Provider upsert does not overwrite another Provider", async () => {
   const mockRow = toMarketListingRow({
     ...normalizedListing,
