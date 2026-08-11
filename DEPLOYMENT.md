@@ -13,6 +13,9 @@
 - [ ] Vercel 已设置 `NEXT_PUBLIC_SITE_URL`
 - [ ] 正式域名回填后已重新部署
 - [ ] `.env.local` 未提交
+- [ ] 启用持久化市场 Repository 前，服务器端已设置 `SUPABASE_URL` 与 `SUPABASE_SERVICE_ROLE_KEY`
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` 未使用 `NEXT_PUBLIC_` 前缀，且未进入浏览器 bundle、日志或仓库
+- [ ] 未来启用内部同步 route 时，已单独设置 `CRON_SECRET`；不得与 CSFloat 或 Supabase secret 混用
 - [ ] 仓库中没有 API key、Token、Cookie、个人信息或本地绝对路径
 - [ ] 当前版本不加载分析、广告或第三方脚本
 

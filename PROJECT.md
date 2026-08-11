@@ -118,9 +118,15 @@ lib/
     csfloat-response.ts
     normalizers/market.ts
   repositories/
+    market-row-mapper.ts
     memory-market-repository.ts
+    supabase-market-repository.ts
+    supabase-market-sync-store.ts
   services/
     market-data-service.ts
+    market-sync-service.ts
+  supabase/
+    server-config.ts
 public/
 tests/
   home.test.ts
@@ -130,6 +136,7 @@ tests/
   site.test.ts
   providers.test.ts
   market-repository.test.ts
+  market-persistence.test.ts
 types/
   market.ts
   player.ts
@@ -137,6 +144,11 @@ types/
   data-provider.ts
   csfloat.ts
   market-repository.ts
+  market-database.ts
+  market-sync.ts
+supabase/
+  migrations/
+    20260811000000_create_market_tables.sql
 PROJECT.md
 package.json
 tsconfig.json
@@ -176,6 +188,7 @@ next.config.ts
 - 完成一次无 API key、`limit=1` 的 CSFloat 只读兼容性请求；当前环境返回 403，未获得 listing 数组
 - 建立来源可追踪的市场报价安全降级结果，真实 Provider 失败时不会把 mock 标记为 CSFloat
 - 建立 Market Repository 接口、Memory Repository、TTL freshness 与 stale cache 服务策略
+- 建立 Supabase/Postgres 持久化 Repository adapter、数据库 row mapper、migration 与同步服务架构
 
 ## 7. 当前页面
 
@@ -190,11 +203,11 @@ next.config.ts
 
 ## 8. 下一阶段计划
 
-1. 设计 persistent cache 与 scheduled sync 策略，但保持写入链路可审计
-2. 选择数据库前确认部署运行时、数据保留和失效要求
+1. 在独立 Supabase 开发项目手动审核并执行 migration
+2. 根据选定 SDK 实现最小 database client adapter 和事务边界
 3. 在安全配置 API key 的受控服务端环境继续验证 listings 响应兼容性
-4. Provider、持久缓存与降级验证稳定后，再规划页面数据源切换
-5. 不实现购买、出价、上架或其他交易写操作
+4. 部署阶段确认计划限制后，再决定 scheduled sync cadence 和受保护 route
+5. 持久化同步验证稳定后，再规划页面数据源切换
 
 ## 9. 编码规范
 
@@ -231,7 +244,8 @@ next.config.ts
 - `lib`：不依赖 React 或浏览器 API 的站点配置、首页预览选择、市场、选手和新闻查询、排序与数据验证纯函数
 - `lib/providers`：服务器端市场数据源选择、Provider 适配、错误边界和外部报价标准化纯逻辑
 - `lib/cache`：服务器端缓存 TTL 配置和 freshness 纯函数
-- `lib/repositories`：SkinRadar 内部标准化市场数据的存储接口实现；当前仅有内存版本
+- `lib/repositories`：SkinRadar 内部标准化市场数据的存储接口实现；包含内存版本与注入式 Supabase adapter contract
+- `lib/supabase`：仅服务器端 Supabase 配置解析；缺失配置不影响当前 mock 网站构建
 - `lib/services`：组合 Repository、Provider、缓存刷新和降级策略的应用服务
 - `public`：可直接公开访问的静态资源
 - `tests`：使用 Node.js 内置测试运行器执行的确定性自动化测试
@@ -265,9 +279,11 @@ next.config.ts
 
 在真实 API、数据库或经过验证的数据源接入前，任何模拟数据都不能描述为真实平台数据、实时数据或实际市场行情。首页当前显示的统计数字直接来自本地 mock 数组长度，只代表演示数据集规模，不代表 SkinRadar 已具备对应的数据覆盖与更新能力。
 
-Market Data Provider 架构已经建立，当前默认 Provider 和页面数据源仍为 `mock` / `mockSkins`。项目仅依据官方文档支持 CSFloat `GET /api/v1/listings` 只读请求，并对 `unknown` JSON 进行运行时解析后再经过 Normalizer；自动测试使用注入的假 `fetch`，不依赖真实网络。2026-08-11 曾执行一次无 API key 的 `GET https://csfloat.com/api/v1/listings?limit=1` 兼容性验证，当前请求环境返回 HTTP 403，未取得 listings 数组，因此 Phase 2 parser 尚未被真实 listing 完整验证，也没有据此放松校验。API secret 只能由服务器端环境变量读取，不得传入 Client Component。当前没有交易写操作，也尚未将真实数据接入生产页面；下一步设计服务端缓存与同步策略。
+Market Data Provider 架构已经建立，当前默认 Provider 和页面数据源仍为 `mock` / `mockSkins`。项目仅依据官方文档支持 CSFloat `GET /api/v1/listings` 只读请求，并对 `unknown` JSON 进行运行时解析后再经过 Normalizer；自动测试使用注入的假 `fetch`，不依赖真实网络。2026-08-11 曾执行一次无 API key 的 `GET https://csfloat.com/api/v1/listings?limit=1` 兼容性验证，当前请求环境返回 HTTP 403，未取得 listings 数组，因此 Phase 2 parser 尚未被真实 listing 完整验证，也没有据此放松校验。API secret 只能由服务器端环境变量读取，不得传入 Client Component。当前没有交易写操作，也尚未将真实数据接入生产页面；下一步是在隔离的开发环境验证持久化 adapter 和同步事务边界。
 
-Market Repository 架构现已建立：Memory Repository 仅用于开发和架构验证，保存的是经过 Normalizer 的 SkinRadar 内部 listing，并通过 envelope 追踪 source、fetchedAt、expiresAt、stale 和 fallback。Service 支持 fresh cache、同步刷新、失败时保留 stale cache，以及无缓存时明确标记的 mock fallback。当前尚未接入数据库或 cron，生产 `/market` 仍直接使用 `mockSkins`；下一阶段设计 persistent cache 与 scheduled sync。
+Market Repository 架构现已建立：Memory Repository 仅用于开发和架构验证，保存的是经过 Normalizer 的 SkinRadar 内部 listing，并通过 envelope 追踪 source、fetchedAt、expiresAt、stale 和 fallback。Service 支持 fresh cache、同步刷新、失败时保留 stale cache，以及无缓存时明确标记的 mock fallback。持久化 adapter contract 与 scheduled-sync-compatible Service 已完成，但数据库和 cron 尚未接入，生产 `/market` 仍直接使用 `mockSkins`。
+
+Persistent Market Repository 以 Supabase Postgres 为目标，migration 位于 `supabase/migrations`。数据库只保存标准化 listing、cache state 和脱敏 sync run，不保存第三方 raw response、卖家资料或 secret；RLS 已启用，anon/authenticated 默认无表权限，仅 service role 可从服务器端读写。`market_listings` 使用 `(provider, external_id)` 唯一键和 upsert，金额存为 `NUMERIC(24,8)` 十进制主单位，避免数据库浮点且不假设未知币种的 minor-unit 位数。同步并发由 `market_sync_runs` 每 Provider 仅允许一条 `running` 记录的部分唯一索引约束；崩溃任务的回收策略留待部署阶段确定。当前只建立注入式 database client contract 和 Sync Service，未安装 SDK、未连接 Supabase、未创建 internal route、未启用 scheduled sync，生产页面仍使用 mock。
 
 ## 15. 自动化验证
 
@@ -287,6 +303,7 @@ Market Repository 架构现已建立：Memory Repository 仅用于开发和架�
 - Provider 测试覆盖选择规则、Mock 适配、CSFloat 缺少鉴权、错误脱敏、标准化不可变性、价格和货币处理
 - 安全报价服务测试覆盖成功来源、限流/不可用降级、无效响应拒绝及 mock 来源标识
 - Repository 测试覆盖内存隔离、TTL 边界、刷新、stale cache、fallback、无效响应保护和来源追踪
+- 持久化测试覆盖服务器配置、row mapper、upsert 契约、Provider 隔离、sync run、并发保护和 secret/raw 数据边界
 - 当前 Node.js 24 可直接运行 TypeScript 测试，因此使用内置 `node:test` 和 `node:assert/strict`，无需引入 Vitest、Jest、tsx 或 ts-node
 - 尚未引入第三方测试框架，因为当前测试对象均为不依赖 DOM 的纯函数；浏览器交互测试应在明确工具和范围后单独规划
 - 下一阶段开发前必须保持 `npm run test`、`npm run lint` 和 `npm run build` 全部通过
