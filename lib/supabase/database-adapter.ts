@@ -46,16 +46,12 @@ async function checkTable(
   client: SupabaseClient<SkinRadarSupabaseDatabase>,
   table: MarketDatabaseTable,
 ) {
-  if (table === "market_cache_state") {
-    const { error } = await client
-      .from(table)
-      .select("cache_key")
-      .limit(1);
-    assertNoError(error, `connectivity check for ${table}`);
-    return;
-  }
-
-  const { error } = await client.from(table).select("id").limit(1);
+  const primaryKeyColumn =
+    table === "market_cache_state" ? "cache_key" : "id";
+  const { error } = await client
+    .from(table)
+    .select(primaryKeyColumn)
+    .limit(1);
   assertNoError(error, `connectivity check for ${table}`);
 }
 

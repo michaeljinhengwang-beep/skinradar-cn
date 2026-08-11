@@ -13,20 +13,21 @@ export type SupabaseMarketConnectivityResult = {
 export async function checkSupabaseMarketDatabase(
   client: SupabaseMarketConnectivityClient,
 ): Promise<SupabaseMarketConnectivityResult> {
-  const entries = await Promise.all(
-    MARKET_DATABASE_TABLES.map(async (table) => {
-      try {
-        await client.checkMarketTable(table);
-        return [table, true] as const;
-      } catch {
-        return [table, false] as const;
-      }
-    }),
-  );
-  const tables = Object.fromEntries(entries) as Record<
-    MarketDatabaseTable,
-    boolean
-  >;
+  const tables: Record<MarketDatabaseTable, boolean> = {
+    market_listings: false,
+    market_cache_state: false,
+    market_sync_runs: false,
+  };
+
+  for (const table of MARKET_DATABASE_TABLES) {
+    try {
+      await client.checkMarketTable(table);
+      tables[table] = true;
+    } catch {
+      tables[table] = false;
+    }
+  }
+
   const ok = MARKET_DATABASE_TABLES.every((table) => tables[table]);
 
   return ok ? { ok, tables } : { ok, tables, errorCode: "TABLE_UNAVAILABLE" };

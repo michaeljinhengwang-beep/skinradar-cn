@@ -85,11 +85,17 @@ type FakeBuilder = {
 
 type FakeSupabaseOptions = {
   readonly tableFailures?: readonly MarketDatabaseTable[];
+  readonly tableRows?: Partial<
+    Readonly<Record<MarketDatabaseTable, readonly unknown[]>>
+  >;
+  readonly tableFailureMessage?: string;
   readonly syncRuns?: readonly FakeSyncRun[];
 };
 
 function createFakeSupabaseClient({
   tableFailures = [],
+  tableRows = {},
+  tableFailureMessage = "table unavailable",
   syncRuns = [],
 }: FakeSupabaseOptions = {}) {
   const operations: FakeOperation[] = [];
@@ -137,8 +143,11 @@ function createFakeSupabaseClient({
         },
         async limit() {
           return failedTables.has(table as MarketDatabaseTable)
-            ? { data: null, error: { message: "table unavailable" } }
-            : { data: [], error: null };
+            ? { data: null, error: { message: tableFailureMessage } }
+            : {
+                data: tableRows[table as MarketDatabaseTable] ?? [],
+                error: null,
+              };
         },
       };
       return builder;
@@ -318,7 +327,7 @@ test("Supabase sync adapter inserts and completes a sync run", async () => {
   assert.equal(runs[0]?.status, "success");
 });
 
-test("connectivity check reports all three tables available", async () => {
+test("connectivity treats three successful empty-table SELECTs as available", async () => {
   const { client } = createFakeSupabaseClient();
   const adapter = createSupabaseMarketDatabaseAdapter(client);
 
@@ -326,6 +335,39 @@ test("connectivity check reports all three tables available", async () => {
 
   assert.equal(result.ok, true);
   assert.ok(Object.values(result.tables).every(Boolean));
+});
+
+test("connectivity treats a successful one-row SELECT as available", async () => {
+  const { client } = createFakeSupabaseClient({
+    tableRows: {
+      market_listings: [{ id: "listing-row" }],
+      market_cache_state: [{ cache_key: "market:listings" }],
+      market_sync_runs: [{ id: "sync-row" }],
+    },
+  });
+  const adapter = createSupabaseMarketDatabaseAdapter(client);
+
+  const result = await checkSupabaseMarketDatabase(adapter);
+
+  assert.equal(result.ok, true);
+  assert.ok(Object.values(result.tables).every(Boolean));
+});
+
+test("empty market_cache_state data is not mapped to TABLE_UNAVAILABLE", async () => {
+  const { client, operations } = createFakeSupabaseClient();
+  const adapter = createSupabaseMarketDatabaseAdapter(client);
+
+  await assert.doesNotReject(() =>
+    adapter.checkMarketTable("market_cache_state"),
+  );
+  assert.ok(
+    operations.some(
+      ({ kind, target, payload }) =>
+        kind === "select" &&
+        target === "market_cache_state" &&
+        payload === "cache_key",
+    ),
+  );
 });
 
 test("connectivity check reports an unavailable table without raw errors", async () => {
@@ -340,6 +382,21 @@ test("connectivity check reports an unavailable table without raw errors", async
   assert.equal(result.tables.market_sync_runs, false);
   assert.equal(result.errorCode, "TABLE_UNAVAILABLE");
   assert.doesNotMatch(JSON.stringify(result), /table unavailable/u);
+});
+
+test("connectivity never returns a secret-bearing database error", async () => {
+  const secret = "database-secret-placeholder";
+  const { client } = createFakeSupabaseClient({
+    tableFailures: ["market_cache_state"],
+    tableFailureMessage: `request failed with ${secret}`,
+  });
+  const adapter = createSupabaseMarketDatabaseAdapter(client);
+
+  const result = await checkSupabaseMarketDatabase(adapter);
+
+  assert.equal(result.tables.market_cache_state, false);
+  assert.equal(result.errorCode, "TABLE_UNAVAILABLE");
+  assert.ok(!JSON.stringify(result).includes(secret));
 });
 
 test("connectivity check performs only select operations", async () => {
