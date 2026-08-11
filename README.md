@@ -75,7 +75,7 @@ CSFLOAT_API_KEY=
 
 ## 真实数据接入状态
 
-当前线上页面仍直接使用明确标注的本地模拟数据，尚未启用生产真实市场数据。项目已准备 Market Data Provider 与 Normalizer，并依据官方文档支持 CSFloat active listings 的只读 GET client；`MARKET_DATA_PROVIDER` 默认且安全回退为 `mock`。`CSFLOAT_API_KEY` 仅可作为服务器 secret，不得添加 `NEXT_PUBLIC_` 前缀或提交真实值。当前没有购买、出价、上架、账户修改或其他交易操作，也不表示已经完成生产接入。
+当前线上页面仍直接使用明确标注的本地模拟数据，尚未启用生产真实市场数据。项目已准备 Market Data Provider、Normalizer 和来源可追踪的安全降级结果，并依据官方文档支持 CSFloat active listings 的只读 GET client。一次无 key、`limit=1` 的兼容性请求在当前环境返回 403，尚未取得真实 listing 数组；`MARKET_DATA_PROVIDER` 继续默认且安全回退为 `mock`。`CSFLOAT_API_KEY` 仅可作为服务器 secret，不得添加 `NEXT_PUBLIC_` 前缀或提交真实值。当前没有购买、出价、上架、账户修改或其他交易操作，也不表示已经完成生产接入。
 
 ## 测试与构建
 

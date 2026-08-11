@@ -58,11 +58,11 @@ export function buildCSFloatListingsUrl(options: MarketListingsQuery = {}) {
 }
 
 function mapStatusError(status: number): MarketProviderError {
-  if (status === 401) {
+  if (status === 401 || status === 403) {
     return new MarketProviderError(
       "AUTH_REQUIRED",
       "csfloat",
-      "CSFloat rejected the request credentials.",
+      "CSFloat rejected the request credentials or access context.",
     );
   }
 

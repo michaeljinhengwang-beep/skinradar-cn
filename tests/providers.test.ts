@@ -16,27 +16,24 @@ import {
   resolveMarketDataProviderName,
 } from "../lib/providers/market-provider.ts";
 import { mockMarketDataProvider } from "../lib/providers/mock-market-provider.ts";
+import { getMarketListingsSafely } from "../lib/providers/market-listings-service.ts";
 import { normalizeExternalMarketListing } from "../lib/providers/normalizers/market.ts";
-import type { ExternalMarketListing } from "../types/data-provider.ts";
+import type {
+  ExternalMarketListing,
+  MarketDataProvider,
+} from "../types/data-provider.ts";
 
 const officialMinimalListing = {
-  id: "324288155723370196",
-  created_at: "2021-06-13T20:45:21.311794Z",
+  id: "test-listing-001",
+  created_at: "2026-08-11T08:00:00.000Z",
   type: "buy_now",
   price: 260000,
   state: "listed",
   item: {
-    asset_id: "22547095285",
-    def_index: 16,
-    paint_index: 449,
-    paint_seed: 700,
     float_value: 0.02796577662229538,
-    market_hash_name: "M4A4 | Poseidon (Factory New)",
-    item_name: "M4A4 | Poseidon",
+    market_hash_name: "M4A4 | Test Skin (Factory New)",
+    item_name: "M4A4 | Test Skin",
     wear_name: "Factory New",
-    is_stattrak: false,
-    is_souvenir: false,
-    rarity: 5,
   },
 };
 
@@ -228,6 +225,7 @@ test("Provider implementation and type sources do not use explicit unsafe types"
     "../lib/providers/csfloat-market-name.ts",
     "../lib/providers/csfloat-response.ts",
     "../lib/providers/market-provider.ts",
+    "../lib/providers/market-listings-service.ts",
     "../lib/providers/normalizers/market.ts",
     "../types/csfloat.ts",
   ].map((relativePath) =>
@@ -373,7 +371,10 @@ test("CSFloat Provider processes a successful 200 JSON response", async () => {
   ).getListings();
 
   assert.equal(listings[0].provider, "csfloat");
-  assert.equal(listings[0].marketHashName, "M4A4 | Poseidon (Factory New)");
+  assert.equal(
+    listings[0].marketHashName,
+    "M4A4 | Test Skin (Factory New)",
+  );
 });
 
 test("CSFloat Provider maps 400 to INVALID_RESPONSE", async () => {
@@ -386,6 +387,13 @@ test("CSFloat Provider maps 400 to INVALID_RESPONSE", async () => {
 test("CSFloat Provider maps 401 to AUTH_REQUIRED", async () => {
   await assertProviderError(
     createResponseProvider(jsonResponse({}, 401)).getListings(),
+    "AUTH_REQUIRED",
+  );
+});
+
+test("CSFloat Provider maps live-confirmed 403 to AUTH_REQUIRED", async () => {
+  await assertProviderError(
+    createResponseProvider(jsonResponse({}, 403)).getListings(),
     "AUTH_REQUIRED",
   );
 });
@@ -444,12 +452,12 @@ test("CSFloat listings URL clamps limit above the official maximum", () => {
 
 test("CSFloat listings URL safely encodes market_hash_name", () => {
   const url = buildCSFloatListingsUrl({
-    marketHashName: "M4A4 | Poseidon (Factory New)",
+    marketHashName: "M4A4 | Test Skin (Factory New)",
   });
 
   assert.equal(
     url.searchParams.get("market_hash_name"),
-    "M4A4 | Poseidon (Factory New)",
+    "M4A4 | Test Skin (Factory New)",
   );
   assert.ok(!url.toString().includes("Factory New"));
 });
@@ -511,11 +519,11 @@ test("CSFloat Provider maps an aborted request to PROVIDER_UNAVAILABLE", async (
 test("CSFloat market names parse standard and StatTrak item formats", () => {
   assert.deepEqual(
     parseCSFloatMarketHashName(
-      "M4A4 | Poseidon (Factory New)",
-      "M4A4 | Poseidon",
+      "M4A4 | Test Skin (Factory New)",
+      "M4A4 | Test Skin",
       "Factory New",
     ),
-    { weapon: "M4A4", skinName: "Poseidon", exterior: "Factory New" },
+    { weapon: "M4A4", skinName: "Test Skin", exterior: "Factory New" },
   );
   assert.deepEqual(
     parseCSFloatMarketHashName(
@@ -532,4 +540,199 @@ test("CSFloat market names safely retain non-standard item names", () => {
     parseCSFloatMarketHashName("Unusual Item", "Unusual Item", null),
     { weapon: "Unusual Item", skinName: null, exterior: null },
   );
+});
+
+function createTestProvider(
+  name: MarketDataProvider["name"],
+  getListings: MarketDataProvider["getListings"],
+): MarketDataProvider {
+  return {
+    name,
+    getListings,
+    async getSkinByExternalId() {
+      return undefined;
+    },
+    async healthCheck() {
+      return { provider: name, available: true };
+    },
+  };
+}
+
+test("anonymous compatibility fixture passes the current runtime parser", () => {
+  const [listing] = parseCSFloatListingsResponse([officialMinimalListing]);
+
+  assert.equal(listing.id, "test-listing-001");
+  assert.equal(listing.item.item_name, "M4A4 | Test Skin");
+});
+
+test("Provider processes the anonymous compatibility fixture end to end", async () => {
+  const [listing] = await createResponseProvider(
+    jsonResponse([officialMinimalListing]),
+  ).getListings();
+
+  assert.equal(listing.provider, "csfloat");
+  assert.equal(listing.skinName, "Test Skin");
+});
+
+test("anonymous compatibility fixture keeps nullable item fields explicit", () => {
+  const [listing] = parseCSFloatListingsResponse([
+    {
+      ...officialMinimalListing,
+      item: {
+        ...officialMinimalListing.item,
+        wear_name: null,
+        float_value: null,
+      },
+    },
+  ]);
+
+  assert.equal(listing.item.wear_name, null);
+  assert.equal(listing.item.float_value, null);
+});
+
+test("anonymous compatibility fixture preserves integer cents until conversion", async () => {
+  const [parsed] = parseCSFloatListingsResponse([officialMinimalListing]);
+  const [normalized] = await createResponseProvider(
+    jsonResponse([officialMinimalListing]),
+  ).getListings();
+
+  assert.equal(parsed.price, 260000);
+  assert.equal(normalized.price, 2600);
+});
+
+test("anonymous compatibility fixture is not mutated by the full pipeline", async () => {
+  const fixture = structuredClone([officialMinimalListing]);
+  const snapshot = JSON.stringify(fixture);
+
+  await createResponseProvider(jsonResponse(fixture)).getListings();
+
+  assert.equal(JSON.stringify(fixture), snapshot);
+});
+
+test("safe listings service returns mock directly with an explicit source", async () => {
+  const result = await getMarketListingsSafely({
+    provider: mockMarketDataProvider,
+  });
+
+  assert.equal(result.source, "mock");
+  assert.equal(result.fallback, false);
+  assert.equal(result.data.length, mockSkins.length);
+});
+
+test("safe listings service keeps successful CSFloat data without fallback", async () => {
+  const csfloatProvider = createTestProvider("csfloat", async () => [
+    { ...validListing, provider: "csfloat", currency: "UNSPECIFIED" },
+  ]);
+  const result = await getMarketListingsSafely({ provider: csfloatProvider });
+
+  assert.equal(result.source, "csfloat");
+  assert.equal(result.fallback, false);
+  assert.equal(result.error, undefined);
+});
+
+test("safe listings service clearly falls back on RATE_LIMITED", async () => {
+  const csfloatProvider = createTestProvider("csfloat", async () => {
+    throw new MarketProviderError("RATE_LIMITED", "csfloat", "rate limited");
+  });
+  const result = await getMarketListingsSafely({ provider: csfloatProvider });
+
+  assert.equal(result.source, "mock");
+  assert.equal(result.fallback, true);
+  assert.equal(result.error?.code, "RATE_LIMITED");
+});
+
+test("safe listings service clearly falls back on PROVIDER_UNAVAILABLE", async () => {
+  const csfloatProvider = createTestProvider("csfloat", async () => {
+    throw new MarketProviderError(
+      "PROVIDER_UNAVAILABLE",
+      "csfloat",
+      "unavailable",
+    );
+  });
+  const result = await getMarketListingsSafely({ provider: csfloatProvider });
+
+  assert.equal(result.source, "mock");
+  assert.equal(result.fallback, true);
+  assert.equal(result.error?.code, "PROVIDER_UNAVAILABLE");
+});
+
+test("safe listings service treats denied access as an explicit fallback", async () => {
+  const csfloatProvider = createTestProvider("csfloat", async () => {
+    throw new MarketProviderError("AUTH_REQUIRED", "csfloat", "denied");
+  });
+  const result = await getMarketListingsSafely({ provider: csfloatProvider });
+
+  assert.equal(result.source, "mock");
+  assert.equal(result.fallback, true);
+  assert.equal(result.error?.code, "AUTH_REQUIRED");
+});
+
+test("INVALID_RESPONSE is never disguised as successful CSFloat data", async () => {
+  const csfloatProvider = createTestProvider("csfloat", async () => {
+    throw new MarketProviderError(
+      "INVALID_RESPONSE",
+      "csfloat",
+      "invalid response",
+    );
+  });
+  const result = await getMarketListingsSafely({ provider: csfloatProvider });
+
+  assert.deepEqual(result.data, []);
+  assert.equal(result.source, "none");
+  assert.equal(result.fallback, false);
+  assert.equal(result.error?.code, "INVALID_RESPONSE");
+});
+
+test("fallback mock listings are never labeled as CSFloat", async () => {
+  const csfloatProvider = createTestProvider("csfloat", async () => {
+    throw new MarketProviderError("RATE_LIMITED", "csfloat", "rate limited");
+  });
+  const result = await getMarketListingsSafely({ provider: csfloatProvider });
+
+  assert.ok(result.data.every(({ provider }) => provider === "mock"));
+  assert.notEqual(result.source, "csfloat");
+});
+
+test("safe listings results omit secret-bearing error messages", async () => {
+  const secret = "private-test-secret";
+  const csfloatProvider = createTestProvider("csfloat", async () => {
+    throw new MarketProviderError(
+      "PROVIDER_UNAVAILABLE",
+      "csfloat",
+      `request failed ${secret}`,
+    );
+  });
+  const result = await getMarketListingsSafely({ provider: csfloatProvider });
+
+  assert.ok(!JSON.stringify(result).includes(secret));
+});
+
+test("safe listings service preserves timeout and abort failure semantics", async () => {
+  const csfloatProvider = createTestProvider("csfloat", async () => {
+    throw new MarketProviderError(
+      "PROVIDER_UNAVAILABLE",
+      "csfloat",
+      "request aborted",
+    );
+  });
+  const result = await getMarketListingsSafely({ provider: csfloatProvider });
+
+  assert.equal(result.error?.code, "PROVIDER_UNAVAILABLE");
+  assert.equal(result.source, "mock");
+});
+
+test("production market pages continue to import mockSkins directly", () => {
+  const marketPage = readFileSync(
+    new URL("../app/market/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const detailPage = readFileSync(
+    new URL("../app/market/[id]/page.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.ok(marketPage.includes("mockSkins"));
+  assert.ok(detailPage.includes("mockSkins"));
+  assert.ok(!marketPage.includes("getMarketListingsSafely"));
+  assert.ok(!detailPage.includes("getMarketListingsSafely"));
 });

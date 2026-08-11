@@ -109,6 +109,7 @@ lib/
   providers/
     errors.ts
     market-provider.ts
+    market-listings-service.ts
     mock-market-provider.ts
     csfloat-market-provider.ts
     csfloat-market-name.ts
@@ -164,6 +165,8 @@ next.config.ts
 - 建立全局 404、错误边界、环境变量模板和 Vercel 上线文档
 - 建立 Market Data Provider、统一外部报价模型、Normalizer、Mock 适配器与 CSFloat 未联网骨架
 - 依据官方文档建立 CSFloat 只读 listings HTTP client、运行时响应解析和 cents 价格处理
+- 完成一次无 API key、`limit=1` 的 CSFloat 只读兼容性请求；当前环境返回 403，未获得 listing 数组
+- 建立来源可追踪的市场报价安全降级结果，真实 Provider 失败时不会把 mock 标记为 CSFloat
 
 ## 7. 当前页面
 
@@ -178,11 +181,11 @@ next.config.ts
 
 ## 8. 下一阶段计划
 
-1. 评估 CSFloat listings 的缓存、更新频率、限流和降级策略
-2. 确认 listings 货币语义并设计多币种展示，不进行隐式汇率换算
-3. 使用受控服务端验证环境观察真实响应兼容性
-4. Provider 验证稳定后，再规划页面数据源切换与错误状态
-5. 后续评估数据库缓存和定时同步，不实现交易写操作
+1. 设计服务端缓存和同步策略，避免页面请求直接依赖第三方可用性
+2. 在安全配置 API key 的受控服务端环境继续验证 listings 响应兼容性
+3. 确认 listings 货币语义并设计多币种展示，不进行隐式汇率换算
+4. Provider 与缓存验证稳定后，再规划页面数据源切换与错误状态
+5. 不实现购买、出价、上架或其他交易写操作
 
 ## 9. 编码规范
 
@@ -250,7 +253,7 @@ next.config.ts
 
 在真实 API、数据库或经过验证的数据源接入前，任何模拟数据都不能描述为真实平台数据、实时数据或实际市场行情。首页当前显示的统计数字直接来自本地 mock 数组长度，只代表演示数据集规模，不代表 SkinRadar 已具备对应的数据覆盖与更新能力。
 
-Market Data Provider 架构已经建立，当前默认 Provider 和页面数据源仍为 `mock` / `mockSkins`。项目仅依据官方文档支持 CSFloat `GET /api/v1/listings` 只读请求，并对 `unknown` JSON 进行运行时解析后再经过 Normalizer；自动测试使用注入的假 `fetch`，不依赖真实网络。API secret 只能由服务器端环境变量读取，不得传入 Client Component。当前没有交易写操作，也尚未将真实数据接入生产页面；下一步评估缓存、限流、降级和页面接入边界。
+Market Data Provider 架构已经建立，当前默认 Provider 和页面数据源仍为 `mock` / `mockSkins`。项目仅依据官方文档支持 CSFloat `GET /api/v1/listings` 只读请求，并对 `unknown` JSON 进行运行时解析后再经过 Normalizer；自动测试使用注入的假 `fetch`，不依赖真实网络。2026-08-11 曾执行一次无 API key 的 `GET https://csfloat.com/api/v1/listings?limit=1` 兼容性验证，当前请求环境返回 HTTP 403，未取得 listings 数组，因此 Phase 2 parser 尚未被真实 listing 完整验证，也没有据此放松校验。API secret 只能由服务器端环境变量读取，不得传入 Client Component。当前没有交易写操作，也尚未将真实数据接入生产页面；下一步设计服务端缓存与同步策略。
 
 ## 15. 自动化验证
 
@@ -268,6 +271,7 @@ Market Data Provider 架构已经建立，当前默认 Provider 和页面数据�
 - 首页测试覆盖 limit 边界、结果稳定性、输入不可变性、预览多样性、模拟精选优先级及详情标识有效性
 - 站点测试覆盖 URL 回退、导航、sitemap、robots 和 manifest 的确定性行为
 - Provider 测试覆盖选择规则、Mock 适配、CSFloat 缺少鉴权、错误脱敏、标准化不可变性、价格和货币处理
+- 安全报价服务测试覆盖成功来源、限流/不可用降级、无效响应拒绝及 mock 来源标识
 - 当前 Node.js 24 可直接运行 TypeScript 测试，因此使用内置 `node:test` 和 `node:assert/strict`，无需引入 Vitest、Jest、tsx 或 ts-node
 - 尚未引入第三方测试框架，因为当前测试对象均为不依赖 DOM 的纯函数；浏览器交互测试应在明确工具和范围后单独规划
 - 下一阶段开发前必须保持 `npm run test`、`npm run lint` 和 `npm run build` 全部通过
