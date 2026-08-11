@@ -71,7 +71,10 @@ MARKET_DATA_PROVIDER=mock
 CSFLOAT_API_KEY=
 MARKET_CACHE_TTL_SECONDS=300
 SUPABASE_URL=
+SUPABASE_SECRET_KEY=
+# Legacy compatibility only
 SUPABASE_SERVICE_ROLE_KEY=
+MARKET_SYNC_LOCK_TIMEOUT_SECONDS=900
 ```
 
 未设置时会安全回退到 `http://localhost:3000`。Vercel 部署后应改为已确认的正式域名，并重新部署。不要把 API key、Token 或其他秘密放入 `NEXT_PUBLIC_` 变量；`.env.local` 不应提交 Git。
@@ -86,7 +89,9 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 ## Database status
 
-项目已准备 Supabase Postgres schema、持久化 Repository adapter contract、row mapper 和同步服务。生产数据库尚未连接，未安装 Supabase SDK，也没有提交真实 Supabase secret；市场页面仍使用本地 `mockSkins`。数据库访问仅允许服务器端 service role，当前未开放浏览器读写策略，也未启用 scheduled sync。
+项目已准备 Supabase Postgres schema、官方 `@supabase/supabase-js` 服务器 client、持久化 Repository/Sync Store adapter、row mapper 和只读 connectivity check。新项目优先在服务器环境使用 `SUPABASE_SECRET_KEY`，`SUPABASE_SERVICE_ROLE_KEY` 仅作为 legacy compatibility；两者都不得使用 `NEXT_PUBLIC_` 前缀。真实值只放在本地 `.env.local` 或 Vercel Environment Variables，不得提交仓库。
+
+数据库尚未连接，migration 也不会由构建自动执行。开发者应在 Supabase Dashboard 的 SQL Editor 中手动执行 `supabase/migrations/20260811000000_create_market_tables.sql`，配置环境变量后再单独授权只读 connectivity smoke test。市场页面仍使用本地 `mockSkins`，scheduled sync 和真实市场同步均未启用。
 
 ## 测试与构建
 

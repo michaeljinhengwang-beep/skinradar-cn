@@ -15,7 +15,8 @@ export type MarketSyncResultStatus = Extract<
 >;
 export type MarketSyncErrorCode =
   | MarketProviderErrorCode
-  | "SYNC_WRITE_FAILED";
+  | "SYNC_WRITE_FAILED"
+  | "STALE_SYNC_RECOVERED";
 
 export type StartMarketSyncInput = {
   readonly provider: MarketDataProviderName;

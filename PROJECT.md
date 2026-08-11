@@ -126,7 +126,13 @@ lib/
     market-data-service.ts
     market-sync-service.ts
   supabase/
+    connectivity.ts
+    database-adapter.ts
+    development.ts
+    market-sync-lock.ts
+    server.ts
     server-config.ts
+    server-options.ts
 public/
 tests/
   home.test.ts
@@ -137,6 +143,7 @@ tests/
   providers.test.ts
   market-repository.test.ts
   market-persistence.test.ts
+  supabase-development.test.ts
 types/
   market.ts
   player.ts
@@ -146,6 +153,7 @@ types/
   market-repository.ts
   market-database.ts
   market-sync.ts
+  supabase-database.ts
 supabase/
   migrations/
     20260811000000_create_market_tables.sql
@@ -189,6 +197,9 @@ next.config.ts
 - 建立来源可追踪的市场报价安全降级结果，真实 Provider 失败时不会把 mock 标记为 CSFloat
 - 建立 Market Repository 接口、Memory Repository、TTL freshness 与 stale cache 服务策略
 - 建立 Supabase/Postgres 持久化 Repository adapter、数据库 row mapper、migration 与同步服务架构
+- 接入官方 `@supabase/supabase-js` 的 server-only client 和数据库 adapter，并建立只读 connectivity check
+- 新 Supabase 项目优先使用 `SUPABASE_SECRET_KEY`，同时保留 legacy `SUPABASE_SERVICE_ROLE_KEY` 兼容读取
+- 为异常 `running` 同步增加默认 900 秒的 stale lock 标记失败与安全回收机制
 
 ## 7. 当前页面
 
@@ -203,11 +214,11 @@ next.config.ts
 
 ## 8. 下一阶段计划
 
-1. 在独立 Supabase 开发项目手动审核并执行 migration
-2. 根据选定 SDK 实现最小 database client adapter 和事务边界
-3. 在安全配置 API key 的受控服务端环境继续验证 listings 响应兼容性
+1. 在独立 Supabase 开发项目的 SQL Editor 手动审核并执行 migration
+2. 用户在 `.env.local` 自行配置 `SUPABASE_URL` 与 `SUPABASE_SECRET_KEY`
+3. 获得明确联网授权后，仅执行一次只读数据库 connectivity smoke test
 4. 部署阶段确认计划限制后，再决定 scheduled sync cadence 和受保护 route
-5. 持久化同步验证稳定后，再规划页面数据源切换
+5. 持久化同步验证稳定后，再规划页面数据源切换；在此之前页面继续使用 mock
 
 ## 9. 编码规范
 
@@ -283,7 +294,9 @@ Market Data Provider 架构已经建立，当前默认 Provider 和页面数据�
 
 Market Repository 架构现已建立：Memory Repository 仅用于开发和架构验证，保存的是经过 Normalizer 的 SkinRadar 内部 listing，并通过 envelope 追踪 source、fetchedAt、expiresAt、stale 和 fallback。Service 支持 fresh cache、同步刷新、失败时保留 stale cache，以及无缓存时明确标记的 mock fallback。持久化 adapter contract 与 scheduled-sync-compatible Service 已完成，但数据库和 cron 尚未接入，生产 `/market` 仍直接使用 `mockSkins`。
 
-Persistent Market Repository 以 Supabase Postgres 为目标，migration 位于 `supabase/migrations`。数据库只保存标准化 listing、cache state 和脱敏 sync run，不保存第三方 raw response、卖家资料或 secret；RLS 已启用，anon/authenticated 默认无表权限，仅 service role 可从服务器端读写。`market_listings` 使用 `(provider, external_id)` 唯一键和 upsert，金额存为 `NUMERIC(24,8)` 十进制主单位，避免数据库浮点且不假设未知币种的 minor-unit 位数。同步并发由 `market_sync_runs` 每 Provider 仅允许一条 `running` 记录的部分唯一索引约束；崩溃任务的回收策略留待部署阶段确定。当前只建立注入式 database client contract 和 Sync Service，未安装 SDK、未连接 Supabase、未创建 internal route、未启用 scheduled sync，生产页面仍使用 mock。
+Persistent Market Repository 以 Supabase Postgres 为目标，migration 位于 `supabase/migrations`，必须由用户在开发项目 SQL Editor 手动执行。数据库只保存标准化 listing、cache state 和脱敏 sync run，不保存第三方 raw response、卖家资料或 secret；RLS 已启用，anon/authenticated 默认无表权限，仅服务器 secret/legacy service role 可操作。`market_listings` 使用 `(provider, external_id)` 唯一键，写入通过事务型 RPC upsert listings 与 cache metadata；金额存为 `NUMERIC(24,8)` 十进制主单位，读取 RPC 转为字符串以避免数据库金额先经过 JavaScript 浮点。官方 Supabase SDK client 已封装在 server-only DAL，优先读取 `SUPABASE_SECRET_KEY`，仅在缺失时兼容 legacy `SUPABASE_SERVICE_ROLE_KEY`，且关闭 auth session 持久化。
+
+同步并发的最终保证仍是 `market_sync_runs` 每 Provider 仅允许一条 `running` 记录的部分唯一索引。`MARKET_SYNC_LOCK_TIMEOUT_SECONDS` 默认 900 秒；数据库事务会把超时任务标记为 `failed` 与 `STALE_SYNC_RECOVERED` 后创建新任务，不删除历史记录，active lock 或并发竞态则返回不可获取。当前只读 connectivity check 可验证三张表但未对公网暴露；尚未连接真实 Supabase、未执行 migration、未创建 internal route、未启用 scheduled sync，生产页面仍使用 mock。
 
 ## 15. 自动化验证
 
@@ -303,7 +316,7 @@ Persistent Market Repository 以 Supabase Postgres 为目标，migration 位于 
 - Provider 测试覆盖选择规则、Mock 适配、CSFloat 缺少鉴权、错误脱敏、标准化不可变性、价格和货币处理
 - 安全报价服务测试覆盖成功来源、限流/不可用降级、无效响应拒绝及 mock 来源标识
 - Repository 测试覆盖内存隔离、TTL 边界、刷新、stale cache、fallback、无效响应保护和来源追踪
-- 持久化测试覆盖服务器配置、row mapper、upsert 契约、Provider 隔离、sync run、并发保护和 secret/raw 数据边界
+- 持久化测试覆盖新/旧密钥优先级、server client、row mapper、真实 SDK adapter、原子 upsert、只读 connectivity、Provider 隔离、sync run、stale lock、数据库唯一并发保护和 secret/raw 数据边界
 - 当前 Node.js 24 可直接运行 TypeScript 测试，因此使用内置 `node:test` 和 `node:assert/strict`，无需引入 Vitest、Jest、tsx 或 ts-node
 - 尚未引入第三方测试框架，因为当前测试对象均为不依赖 DOM 的纯函数；浏览器交互测试应在明确工具和范围后单独规划
 - 下一阶段开发前必须保持 `npm run test`、`npm run lint` 和 `npm run build` 全部通过

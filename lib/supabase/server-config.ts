@@ -4,7 +4,8 @@ export type SupabaseServerEnvironment = Readonly<
 
 export type SupabaseServerConfig = {
   readonly url: string;
-  readonly serviceRoleKey: string;
+  readonly secretKey: string;
+  readonly keySource: "secret" | "legacy-service-role";
 };
 
 export class SupabaseConfigurationError extends Error {
@@ -42,13 +43,17 @@ function parseServerUrl(value?: string) {
 export function getSupabaseServerConfig(
   environment: SupabaseServerEnvironment = process.env,
 ): SupabaseServerConfig {
-  const serviceRoleKey = environment.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!serviceRoleKey) {
+  const secretKey = environment.SUPABASE_SECRET_KEY?.trim();
+  const legacyServiceRoleKey =
+    environment.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const selectedKey = secretKey || legacyServiceRoleKey;
+  if (!selectedKey) {
     throw new SupabaseConfigurationError();
   }
 
   return {
     url: parseServerUrl(environment.SUPABASE_URL),
-    serviceRoleKey,
+    secretKey: selectedKey,
+    keySource: secretKey ? "secret" : "legacy-service-role",
   };
 }

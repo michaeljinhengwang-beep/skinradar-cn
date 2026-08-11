@@ -38,7 +38,7 @@ import type {
 
 const SUPABASE_TEST_ENV = {
   SUPABASE_URL: "https://skinradar-test.supabase.co",
-  SUPABASE_SERVICE_ROLE_KEY: "test-only-placeholder",
+  SUPABASE_SECRET_KEY: "test-only-placeholder",
 } as const;
 const FETCHED_AT = "2026-08-11T08:00:00.000Z";
 const NOW = new Date("2026-08-11T08:01:00.000Z");
@@ -215,7 +215,8 @@ test("valid Supabase server configuration is parsed", () => {
   const config = getSupabaseServerConfig(SUPABASE_TEST_ENV);
 
   assert.equal(config.url, "https://skinradar-test.supabase.co/");
-  assert.equal(config.serviceRoleKey, "test-only-placeholder");
+  assert.equal(config.secretKey, "test-only-placeholder");
+  assert.equal(config.keySource, "secret");
 });
 
 test("row mapper converts an internal listing to snake_case", () => {
@@ -437,7 +438,7 @@ test("sync does not persist third-party raw response fields", async () => {
 test("sync does not persist configuration secrets", async () => {
   const secretEnvironment = {
     ...SUPABASE_TEST_ENV,
-    SUPABASE_SERVICE_ROLE_KEY: "database-service-role-secret",
+    SUPABASE_SECRET_KEY: "database-secret-placeholder",
   };
   const { client, state } = createFakeDatabaseClient();
   const repository = createSupabaseMarketRepository({
@@ -455,8 +456,8 @@ test("sync does not persist configuration secrets", async () => {
 
   await service.sync();
 
-  assert.ok(!JSON.stringify(state).includes(secretEnvironment.SUPABASE_SERVICE_ROLE_KEY));
-  assert.ok(!JSON.stringify(syncDatabase).includes(secretEnvironment.SUPABASE_SERVICE_ROLE_KEY));
+  assert.ok(!JSON.stringify(state).includes(secretEnvironment.SUPABASE_SECRET_KEY));
+  assert.ok(!JSON.stringify(syncDatabase).includes(secretEnvironment.SUPABASE_SECRET_KEY));
 });
 
 test("concurrent sync is rejected before calling the Provider", async () => {

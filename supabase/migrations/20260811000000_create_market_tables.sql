@@ -85,3 +85,244 @@ revoke all on public.market_sync_runs from anon, authenticated;
 grant select, insert, update on public.market_listings to service_role;
 grant select, insert, update on public.market_cache_state to service_role;
 grant select, insert, update on public.market_sync_runs to service_role;
+
+create or replace function public.read_market_listings(p_provider text)
+returns table (
+  id uuid,
+  external_id text,
+  provider text,
+  market_hash_name text,
+  weapon text,
+  skin_name text,
+  exterior text,
+  price_amount text,
+  currency text,
+  float_value text,
+  listing_url text,
+  observed_at timestamptz,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select
+    listing.id,
+    listing.external_id,
+    listing.provider,
+    listing.market_hash_name,
+    listing.weapon,
+    listing.skin_name,
+    listing.exterior,
+    listing.price_amount::text,
+    listing.currency,
+    listing.float_value::text,
+    listing.listing_url,
+    listing.observed_at,
+    listing.created_at,
+    listing.updated_at
+  from public.market_listings as listing
+  where listing.provider = p_provider
+  order by listing.observed_at desc, listing.id;
+$$;
+
+create or replace function public.read_market_listing(
+  p_provider text,
+  p_external_id text
+)
+returns table (
+  id uuid,
+  external_id text,
+  provider text,
+  market_hash_name text,
+  weapon text,
+  skin_name text,
+  exterior text,
+  price_amount text,
+  currency text,
+  float_value text,
+  listing_url text,
+  observed_at timestamptz,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select
+    listing.id,
+    listing.external_id,
+    listing.provider,
+    listing.market_hash_name,
+    listing.weapon,
+    listing.skin_name,
+    listing.exterior,
+    listing.price_amount::text,
+    listing.currency,
+    listing.float_value::text,
+    listing.listing_url,
+    listing.observed_at,
+    listing.created_at,
+    listing.updated_at
+  from public.market_listings as listing
+  where listing.provider = p_provider
+    and listing.external_id = p_external_id
+  limit 1;
+$$;
+
+create or replace function public.upsert_market_cache(
+  p_listings jsonb,
+  p_cache_key text,
+  p_source text,
+  p_fetched_at timestamptz,
+  p_expires_at timestamptz,
+  p_fallback boolean
+)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  written_count integer;
+begin
+  if jsonb_typeof(p_listings) <> 'array' then
+    raise exception 'p_listings must be a JSON array';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_array_elements(p_listings) as item
+    where item ->> 'provider' is distinct from p_source
+  ) then
+    raise exception 'listing provider must match cache source';
+  end if;
+
+  insert into public.market_listings (
+    external_id,
+    provider,
+    market_hash_name,
+    weapon,
+    skin_name,
+    exterior,
+    price_amount,
+    currency,
+    float_value,
+    listing_url,
+    observed_at
+  )
+  select
+    incoming.external_id,
+    incoming.provider,
+    incoming.market_hash_name,
+    incoming.weapon,
+    incoming.skin_name,
+    incoming.exterior,
+    incoming.price_amount,
+    incoming.currency,
+    incoming.float_value,
+    incoming.listing_url,
+    incoming.observed_at
+  from jsonb_to_recordset(p_listings) as incoming (
+    external_id text,
+    provider text,
+    market_hash_name text,
+    weapon text,
+    skin_name text,
+    exterior text,
+    price_amount numeric(24, 8),
+    currency text,
+    float_value numeric(10, 9),
+    listing_url text,
+    observed_at timestamptz
+  )
+  on conflict (provider, external_id) do update set
+    market_hash_name = excluded.market_hash_name,
+    weapon = excluded.weapon,
+    skin_name = excluded.skin_name,
+    exterior = excluded.exterior,
+    price_amount = excluded.price_amount,
+    currency = excluded.currency,
+    float_value = excluded.float_value,
+    listing_url = excluded.listing_url,
+    observed_at = excluded.observed_at;
+
+  get diagnostics written_count = row_count;
+
+  insert into public.market_cache_state (
+    cache_key,
+    source,
+    fetched_at,
+    expires_at,
+    fallback
+  ) values (
+    p_cache_key,
+    p_source,
+    p_fetched_at,
+    p_expires_at,
+    p_fallback
+  )
+  on conflict (cache_key) do update set
+    source = excluded.source,
+    fetched_at = excluded.fetched_at,
+    expires_at = excluded.expires_at,
+    fallback = excluded.fallback;
+
+  return written_count;
+end;
+$$;
+
+create or replace function public.try_start_market_sync(
+  p_provider text,
+  p_started_at timestamptz,
+  p_stale_before timestamptz
+)
+returns uuid
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  new_run_id uuid;
+begin
+  update public.market_sync_runs
+  set
+    status = 'failed',
+    completed_at = p_started_at,
+    error_code = 'STALE_SYNC_RECOVERED'
+  where provider = p_provider
+    and status = 'running'
+    and started_at <= p_stale_before;
+
+  insert into public.market_sync_runs (
+    provider,
+    started_at,
+    status
+  ) values (
+    p_provider,
+    p_started_at,
+    'running'
+  )
+  returning id into new_run_id;
+
+  return new_run_id;
+exception
+  when unique_violation then
+    return null;
+end;
+$$;
+
+revoke all on function public.set_market_updated_at() from public, anon, authenticated;
+revoke all on function public.read_market_listings(text) from public, anon, authenticated;
+revoke all on function public.read_market_listing(text, text) from public, anon, authenticated;
+revoke all on function public.upsert_market_cache(jsonb, text, text, timestamptz, timestamptz, boolean) from public, anon, authenticated;
+revoke all on function public.try_start_market_sync(text, timestamptz, timestamptz) from public, anon, authenticated;
+
+grant execute on function public.read_market_listings(text) to service_role;
+grant execute on function public.read_market_listing(text, text) to service_role;
+grant execute on function public.upsert_market_cache(jsonb, text, text, timestamptz, timestamptz, boolean) to service_role;
+grant execute on function public.try_start_market_sync(text, timestamptz, timestamptz) to service_role;

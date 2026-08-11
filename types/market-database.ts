@@ -52,3 +52,15 @@ export interface SupabaseMarketDatabaseClient {
     readonly written: number;
   }>;
 }
+
+export const MARKET_DATABASE_TABLES = [
+  "market_listings",
+  "market_cache_state",
+  "market_sync_runs",
+] as const;
+
+export type MarketDatabaseTable = (typeof MARKET_DATABASE_TABLES)[number];
+
+export interface SupabaseMarketConnectivityClient {
+  checkMarketTable(table: MarketDatabaseTable): Promise<void>;
+}
