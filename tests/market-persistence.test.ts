@@ -424,8 +424,66 @@ test("successful sync completes its persistent run", async () => {
   const result = await service.sync();
 
   assert.equal(result.status, "success");
+  assert.equal(result.runId, "sync-run-1");
   assert.equal(syncDatabase.starts.length, 1);
   assert.equal(syncDatabase.completions[0]?.status, "success");
+  assert.equal(syncDatabase.completions[0]?.listingsReceived, 1);
+  assert.equal(syncDatabase.completions[0]?.listingsWritten, 1);
+});
+
+test("isolated mock sync normalizes and persists one smoke listing", async () => {
+  const { client, state } = createFakeDatabaseClient();
+  const syncDatabase = createFakeSyncDatabaseClient();
+  const repository = createSupabaseMarketRepository({
+    client,
+    environment: SUPABASE_TEST_ENV,
+    cacheKey: "skinradar-sync-smoke-test",
+    now: () => NOW,
+  });
+  const service = createMarketSyncService({
+    provider: createProvider("mock", async () => [
+      {
+        externalId: "  skinradar-sync-smoke-listing-001  ",
+        provider: "mock",
+        marketHashName:
+          "  M4A1-S | SkinRadar Sync Smoke (Factory New)  ",
+        weapon: "M4A1-S",
+        skinName: "SkinRadar Sync Smoke",
+        exterior: "Factory New",
+        price: 88.88,
+        currency: "CAD",
+        floatValue: 0.021234,
+        listingUrl: null,
+        observedAt: FETCHED_AT,
+      },
+    ]),
+    repository,
+    syncStore: createSupabaseMarketSyncStore(syncDatabase.client),
+    now: () => NOW,
+  });
+
+  const result = await service.sync();
+
+  assert.equal(result.status, "success");
+  assert.equal(result.provider, "mock");
+  assert.equal(result.received, 1);
+  assert.equal(result.written, 1);
+  assert.equal(result.runId, "sync-run-1");
+  assert.equal(state.rows.length, 1);
+  assert.equal(
+    state.rows[0]?.external_id,
+    "skinradar-sync-smoke-listing-001",
+  );
+  assert.equal(
+    state.rows[0]?.market_hash_name,
+    "M4A1-S | SkinRadar Sync Smoke (Factory New)",
+  );
+  assert.equal(state.rows[0]?.price_amount, "88.88000000");
+  assert.equal(state.metadata?.cache_key, "skinradar-sync-smoke-test");
+  assert.equal(syncDatabase.completions[0]?.status, "success");
+  assert.equal(syncDatabase.completions[0]?.listingsReceived, 1);
+  assert.equal(syncDatabase.completions[0]?.listingsWritten, 1);
+  assert.equal(syncDatabase.completions[0]?.errorCode, null);
 });
 
 test("failed sync completes its run as failed", async () => {
@@ -447,6 +505,7 @@ test("failed sync completes its run as failed", async () => {
   const result = await service.sync();
 
   assert.equal(result.status, "failed");
+  assert.equal(result.runId, "sync-run-1");
   assert.equal(syncDatabase.completions[0]?.status, "failed");
 });
 

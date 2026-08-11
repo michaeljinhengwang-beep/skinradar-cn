@@ -72,6 +72,7 @@ export function createMarketSyncService({
         });
 
         return {
+          runId,
           status: "success",
           provider: provider.name,
           received,
@@ -92,6 +93,7 @@ export function createMarketSyncService({
         });
 
         return {
+          runId,
           status: "failed",
           provider: provider.name,
           received,

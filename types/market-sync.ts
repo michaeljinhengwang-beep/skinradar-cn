@@ -43,6 +43,7 @@ export interface SupabaseMarketSyncDatabaseClient {
 }
 
 export type MarketSyncResult = {
+  readonly runId: string;
   readonly status: MarketSyncResultStatus;
   readonly provider: MarketDataProviderName;
   readonly received: number;
