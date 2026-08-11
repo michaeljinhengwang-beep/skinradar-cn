@@ -419,6 +419,19 @@ test("route hard-codes the mock Provider and cannot construct CSFloat", () => {
   assert.doesNotMatch(source, /getMarketDataProvider/u);
 });
 
+test("route supports server-side dependency injection without a URL smoke mode", () => {
+  const source = readFileSync(
+    new URL("../app/api/internal/market-sync/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /provider\s*=\s*mockMarketDataProvider/u);
+  assert.match(source, /cacheKey\s*=\s*["']market:listings["']/u);
+  assert.match(source, /readonly provider\?: MarketDataProvider/u);
+  assert.match(source, /readonly cacheKey\?: string/u);
+  assert.doesNotMatch(source, /searchParams|nextUrl|smoke=true|provider=mock/u);
+});
+
 test("authorization implementation uses timing-safe comparison", () => {
   const source = readFileSync(
     new URL(

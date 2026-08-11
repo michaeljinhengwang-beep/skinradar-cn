@@ -7,20 +7,33 @@ import { handleMarketSyncRequest } from "@/lib/services/internal-market-sync-han
 import { createMarketSyncService } from "@/lib/services/market-sync-service";
 import { createSupabaseMarketDatabaseAdapter } from "@/lib/supabase/database-adapter";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { MarketDataProvider } from "@/types/data-provider";
+import type { SupabaseServerEnvironment } from "@/lib/supabase/server-config";
 
-function createInternalMarketSyncService() {
-  const client = createSupabaseServerClient(process.env);
+type InternalMarketSyncServiceOptions = {
+  readonly environment?: SupabaseServerEnvironment;
+  readonly provider?: MarketDataProvider;
+  readonly cacheKey?: string;
+};
+
+export function createInternalMarketSyncService({
+  environment = process.env,
+  provider = mockMarketDataProvider,
+  cacheKey = "market:listings",
+}: InternalMarketSyncServiceOptions = {}) {
+  const client = createSupabaseServerClient(environment);
   const adapter = createSupabaseMarketDatabaseAdapter(client, {
-    environment: process.env,
+    environment,
   });
   const repository = createSupabaseMarketRepository({
     client: adapter,
-    environment: process.env,
+    environment,
+    cacheKey,
   });
   const syncStore = createSupabaseMarketSyncStore(adapter);
 
   return createMarketSyncService({
-    provider: mockMarketDataProvider,
+    provider,
     repository,
     syncStore,
   });
