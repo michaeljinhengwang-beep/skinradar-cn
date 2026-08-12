@@ -75,6 +75,8 @@ SUPABASE_SECRET_KEY=
 # Legacy compatibility only
 SUPABASE_SERVICE_ROLE_KEY=
 MARKET_SYNC_LOCK_TIMEOUT_SECONDS=900
+MARKET_SYNC_MAX_RUN_SECONDS=60
+MARKET_DATA_STALE_AFTER_SECONDS=1800
 CRON_SECRET=
 MARKET_SYNC_ENABLED=false
 MARKET_SYNC_PROVIDER=mock
@@ -100,7 +102,9 @@ MARKET_SYNC_PROVIDER=mock
 
 项目提供仅接受 `POST` 的 `/api/internal/market-sync`，使用 `Authorization: Bearer <CRON_SECRET>` 进行服务器端鉴权。所有响应均为 `no-store`，且只返回脱敏状态。
 
-内部同步默认由 `MARKET_SYNC_ENABLED=false` 关闭；非法值同样视为关闭。Phase 9 的 `MARKET_SYNC_PROVIDER` 仅允许 `mock`，即使其他配置指向 CSFloat，该入口也不会构造或调用 CSFloat Provider。Vercel Cron 尚未配置，首次生产部署必须保持同步关闭。
+内部同步默认由 `MARKET_SYNC_ENABLED=false` 关闭；非法值同样视为关闭。Phase 11 的 `MARKET_SYNC_PROVIDER` 仅允许 `mock`，即使其他配置指向 CSFloat，该入口也不会构造或调用 CSFloat Provider。同步具备默认 60 秒应用层 deadline、Provider `AbortSignal`、数据库并发锁和脱敏运行状态查询；未来真实数据以 1800 秒作为默认 stale 阈值，当前页面仍不使用该状态。
+
+Vercel Cron 当前发送 `GET`，不能直接调用现有仅 `POST` 的内部 Route；项目没有新增 GET 写入口，也没有创建 active `vercel.json` Cron。Hobby 计划最多每天一次；如未来需要更高频率，可另行评估 Supabase Cron，但目前两类调度均未启用。
 
 ## 测试与构建
 

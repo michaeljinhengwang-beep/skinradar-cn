@@ -2,11 +2,13 @@ import type { MarketDataProvider } from "../../types/data-provider.ts";
 import type { MarketRepository } from "../../types/market-repository.ts";
 import type {
   MarketSyncErrorCode,
+  MarketSyncExecutionOptions,
   MarketSyncResult,
   MarketSyncStore,
 } from "../../types/market-sync.ts";
 import { MarketProviderError } from "../providers/errors.ts";
 import { normalizeExternalMarketListings } from "../providers/normalizers/market.ts";
+import { MarketSyncTimeoutError } from "./market-sync-timeout.ts";
 
 export class SyncAlreadyRunningError extends Error {
   readonly code = "SYNC_ALREADY_RUNNING" as const;
@@ -24,10 +26,23 @@ type MarketSyncServiceOptions = {
   readonly now?: () => Date;
 };
 
-function getSyncErrorCode(error: unknown): MarketSyncErrorCode {
+function getSyncErrorCode(
+  error: unknown,
+  signal?: AbortSignal,
+): MarketSyncErrorCode {
+  if (signal?.aborted || error instanceof MarketSyncTimeoutError) {
+    return "TIMEOUT";
+  }
+
   return error instanceof MarketProviderError
     ? error.code
     : "SYNC_WRITE_FAILED";
+}
+
+function assertSyncActive(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw new MarketSyncTimeoutError();
+  }
 }
 
 export function createMarketSyncService({
@@ -37,7 +52,9 @@ export function createMarketSyncService({
   now = () => new Date(),
 }: MarketSyncServiceOptions) {
   return {
-    async sync(): Promise<MarketSyncResult> {
+    async sync(
+      { signal }: MarketSyncExecutionOptions = {},
+    ): Promise<MarketSyncResult> {
       const startedAt = now().toISOString();
       const runId = await syncStore.tryStartSync({
         provider: provider.name,
@@ -51,7 +68,9 @@ export function createMarketSyncService({
       let received = 0;
 
       try {
-        const externalListings = await provider.getListings();
+        assertSyncActive(signal);
+        const externalListings = await provider.getListings({ signal });
+        assertSyncActive(signal);
         received = externalListings.length;
         const listings = normalizeExternalMarketListings(externalListings);
         await repository.replaceListings({
@@ -60,6 +79,7 @@ export function createMarketSyncService({
           fetchedAt: now().toISOString(),
           fallback: false,
         });
+        assertSyncActive(signal);
 
         const completedAt = now().toISOString();
         await syncStore.completeSync({
@@ -81,7 +101,7 @@ export function createMarketSyncService({
           completedAt,
         };
       } catch (error) {
-        const errorCode = getSyncErrorCode(error);
+        const errorCode = getSyncErrorCode(error, signal);
         const completedAt = now().toISOString();
         await syncStore.completeSync({
           runId,

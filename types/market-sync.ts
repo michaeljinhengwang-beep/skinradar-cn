@@ -16,7 +16,12 @@ export type MarketSyncResultStatus = Extract<
 export type MarketSyncErrorCode =
   | MarketProviderErrorCode
   | "SYNC_WRITE_FAILED"
-  | "STALE_SYNC_RECOVERED";
+  | "STALE_SYNC_RECOVERED"
+  | "TIMEOUT";
+
+export type MarketSyncExecutionOptions = {
+  readonly signal?: AbortSignal;
+};
 
 export type StartMarketSyncInput = {
   readonly provider: MarketDataProviderName;
@@ -40,6 +45,23 @@ export interface MarketSyncStore {
 export interface SupabaseMarketSyncDatabaseClient {
   tryInsertMarketSyncRun(input: StartMarketSyncInput): Promise<string | null>;
   updateMarketSyncRun(input: CompleteMarketSyncInput): Promise<void>;
+}
+
+export type MarketSyncHealthRun = {
+  readonly provider: MarketDataProviderName;
+  readonly startedAt: string;
+  readonly completedAt: string;
+  readonly status: Extract<MarketSyncStatus, "success" | "failed">;
+  readonly received: number;
+  readonly written: number;
+  readonly errorCode: MarketSyncErrorCode | "UNKNOWN" | null;
+};
+
+export interface MarketSyncHealthStore {
+  getLatestMarketSyncRun(
+    provider: MarketDataProviderName,
+    status: Extract<MarketSyncStatus, "success" | "failed">,
+  ): Promise<MarketSyncHealthRun | null>;
 }
 
 export type MarketSyncResult = {

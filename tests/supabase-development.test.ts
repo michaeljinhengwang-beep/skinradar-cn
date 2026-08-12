@@ -4,6 +4,7 @@ import test from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { toMarketListingRow } from "../lib/repositories/market-row-mapper.ts";
 import { createSupabaseMarketSyncStore } from "../lib/repositories/supabase-market-sync-store.ts";
+import { getMarketSyncHealth } from "../lib/services/market-sync-health.ts";
 import {
   checkSupabaseMarketDatabase,
 } from "../lib/supabase/connectivity.ts";
@@ -73,12 +74,15 @@ type FakeSyncRun = {
   completedAt: string | null;
   status: MarketSyncStatus;
   errorCode: string | null;
+  listingsReceived?: number;
+  listingsWritten?: number;
 };
 
 type FakeBuilder = {
   select(columns: string): FakeBuilder;
   update(values: Record<string, unknown>): FakeBuilder;
   eq(column: string, value: unknown): FakeBuilder;
+  order(column: string, options: { readonly ascending: boolean }): FakeBuilder;
   maybeSingle(): Promise<FakeResult>;
   limit(count: number): Promise<FakeResult>;
 };
@@ -121,6 +125,9 @@ function createFakeSupabaseClient({
           filters.set(column, value);
           return builder;
         },
+        order() {
+          return builder;
+        },
         async maybeSingle() {
           if (table === "market_cache_state") {
             return { data: { ...metadata, updated_at: CURRENT_TIME }, error: null };
@@ -142,6 +149,32 @@ function createFakeSupabaseClient({
           return { data: null, error: null };
         },
         async limit() {
+          if (table === "market_sync_runs" && filters.size > 0) {
+            const matchingRuns = runs
+              .filter(
+                (run) =>
+                  (filters.get("provider") === undefined ||
+                    run.provider === filters.get("provider")) &&
+                  (filters.get("status") === undefined ||
+                    run.status === filters.get("status")),
+              )
+              .sort(
+                (left, right) =>
+                  Date.parse(right.startedAt) - Date.parse(left.startedAt),
+              )
+              .slice(0, 1)
+              .map((run) => ({
+                provider: run.provider,
+                started_at: run.startedAt,
+                completed_at: run.completedAt,
+                status: run.status,
+                listings_received: run.listingsReceived ?? 0,
+                listings_written: run.listingsWritten ?? 0,
+                error_code: run.errorCode,
+              }));
+            return { data: matchingRuns, error: null };
+          }
+
           return failedTables.has(table as MarketDatabaseTable)
             ? { data: null, error: { message: tableFailureMessage } }
             : {
@@ -325,6 +358,49 @@ test("Supabase sync adapter inserts and completes a sync run", async () => {
     errorCode: null,
   });
   assert.equal(runs[0]?.status, "success");
+});
+
+test("sync health adapter reads minimal status fields and sanitizes errors", async () => {
+  const secret = "database-secret-that-must-not-escape";
+  const { client, operations } = createFakeSupabaseClient({
+    syncRuns: [
+      {
+        id: "success-run",
+        provider: "mock",
+        startedAt: "2026-08-12T11:00:00.000Z",
+        completedAt: "2026-08-12T11:01:00.000Z",
+        status: "success",
+        errorCode: null,
+        listingsReceived: 5,
+        listingsWritten: 5,
+      },
+      {
+        id: "failed-run",
+        provider: "mock",
+        startedAt: "2026-08-12T11:30:00.000Z",
+        completedAt: "2026-08-12T11:31:00.000Z",
+        status: "failed",
+        errorCode: secret,
+      },
+    ],
+  });
+  const adapter = createSupabaseMarketDatabaseAdapter(client);
+  const health = await getMarketSyncHealth(adapter, "mock");
+  const serialized = JSON.stringify(health);
+
+  assert.equal(health.state, "degraded");
+  assert.equal(health.lastSuccess?.received, 5);
+  assert.equal(health.lastFailure?.errorCode, "UNKNOWN");
+  assert.ok(!serialized.includes(secret));
+  assert.ok(
+    operations
+      .filter(({ target }) => target === "market_sync_runs")
+      .every(
+        ({ payload }) =>
+          payload ===
+          "provider,started_at,completed_at,status,listings_received,listings_written,error_code",
+      ),
+  );
 });
 
 test("connectivity treats three successful empty-table SELECTs as available", async () => {

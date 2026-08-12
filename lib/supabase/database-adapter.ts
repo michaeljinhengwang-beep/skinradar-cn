@@ -4,7 +4,12 @@ import type {
   SupabaseMarketConnectivityClient,
   SupabaseMarketDatabaseClient,
 } from "../../types/market-database.ts";
-import type { SupabaseMarketSyncDatabaseClient } from "../../types/market-sync.ts";
+import type {
+  MarketSyncErrorCode,
+  MarketSyncHealthRun,
+  MarketSyncHealthStore,
+  SupabaseMarketSyncDatabaseClient,
+} from "../../types/market-sync.ts";
 import type { SkinRadarSupabaseDatabase } from "../../types/supabase-database.ts";
 import { toMarketSyncRunUpdate } from "../../types/supabase-database.ts";
 import {
@@ -25,7 +30,8 @@ export class SupabaseMarketDatabaseError extends Error {
 
 type SupabaseMarketAdapter = SupabaseMarketDatabaseClient &
   SupabaseMarketSyncDatabaseClient &
-  SupabaseMarketConnectivityClient;
+  SupabaseMarketConnectivityClient &
+  MarketSyncHealthStore;
 
 type SupabaseMarketDatabaseAdapterOptions = {
   readonly environment?: SupabaseServerEnvironment;
@@ -40,6 +46,62 @@ function assertNoError(error: unknown, operation: string) {
   if (error) {
     databaseError(operation);
   }
+}
+
+type MarketSyncHealthRow = Pick<
+  SkinRadarSupabaseDatabase["public"]["Tables"]["market_sync_runs"]["Row"],
+  | "provider"
+  | "started_at"
+  | "completed_at"
+  | "status"
+  | "listings_received"
+  | "listings_written"
+  | "error_code"
+>;
+
+const HEALTH_ERROR_CODES = new Set<MarketSyncErrorCode>([
+  "PROVIDER_UNAVAILABLE",
+  "AUTH_REQUIRED",
+  "RATE_LIMITED",
+  "INVALID_RESPONSE",
+  "NORMALIZATION_ERROR",
+  "SYNC_WRITE_FAILED",
+  "STALE_SYNC_RECOVERED",
+  "TIMEOUT",
+]);
+
+function toMarketSyncHealthRun(
+  row: MarketSyncHealthRow,
+): MarketSyncHealthRun {
+  if (
+    (row.status !== "success" && row.status !== "failed") ||
+    row.completed_at === null ||
+    !Number.isFinite(Date.parse(row.started_at)) ||
+    !Number.isFinite(Date.parse(row.completed_at)) ||
+    !Number.isInteger(row.listings_received) ||
+    row.listings_received < 0 ||
+    !Number.isInteger(row.listings_written) ||
+    row.listings_written < 0
+  ) {
+    databaseError("sync health result validation");
+  }
+
+  const errorCode =
+    row.error_code === null
+      ? null
+      : HEALTH_ERROR_CODES.has(row.error_code as MarketSyncErrorCode)
+        ? (row.error_code as MarketSyncErrorCode)
+        : "UNKNOWN";
+
+  return {
+    provider: row.provider,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+    status: row.status,
+    received: row.listings_received,
+    written: row.listings_written,
+    errorCode,
+  };
 }
 
 async function checkTable(
@@ -133,6 +195,19 @@ export function createSupabaseMarketDatabaseAdapter(
       if (!data) {
         databaseError("sync run completion result validation");
       }
+    },
+    async getLatestMarketSyncRun(provider, status) {
+      const { data, error } = await client
+        .from("market_sync_runs")
+        .select(
+          "provider,started_at,completed_at,status,listings_received,listings_written,error_code",
+        )
+        .eq("provider", provider)
+        .eq("status", status)
+        .order("started_at", { ascending: false })
+        .limit(1);
+      assertNoError(error, "sync health read");
+      return data?.[0] ? toMarketSyncHealthRun(data[0]) : null;
     },
     checkMarketTable(table) {
       return checkTable(client, table);

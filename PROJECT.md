@@ -99,6 +99,9 @@ data/
   mock-players.ts
   mock-news.ts
 lib/
+  config/
+    market-data-freshness.ts
+    market-sync-schedule.ts
   cache/
     market-cache.ts
   home.ts
@@ -126,7 +129,9 @@ lib/
   services/
     internal-market-sync-handler.ts
     market-data-service.ts
+    market-sync-health.ts
     market-sync-service.ts
+    market-sync-timeout.ts
   supabase/
     connectivity.ts
     database-adapter.ts
@@ -148,6 +153,7 @@ tests/
   market-repository.test.ts
   market-persistence.test.ts
   internal-market-sync.test.ts
+  market-sync-schedule.test.ts
   supabase-development.test.ts
   supabase-sync-smoke-safety.test.ts
   supabase-write-safety.test.ts
@@ -209,7 +215,11 @@ next.config.ts
 - 为异常 `running` 同步增加默认 900 秒的 stale lock 标记失败与安全回收机制
 - 完成 Supabase 开发数据库三表 connectivity、隔离写入及 Mock Provider 端到端同步验证，并精确清理全部 smoke-test 数据
 - 建立受 `CRON_SECRET` Bearer 鉴权保护的内部 `POST /api/internal/market-sync` 入口
-- 内部同步默认关闭，Phase 9 仅允许 `mock` Provider；尚未启用 Vercel Cron 或真实 CSFloat 同步
+- 完成一次 localhost 受保护 Route 到开发 Supabase 的隔离同步验证，并精确清理 listing、sync run 与 cache state
+- 建立 server-only scheduler 配置解析、默认 60 秒运行 deadline、Provider `AbortSignal` 和 `TIMEOUT` 脱敏映射
+- 建立默认 1800 秒的 `fresh` / `stale` / `unknown` 市场数据状态纯逻辑
+- 建立基于 `market_sync_runs` 的脱敏同步健康查询，可读取上次成功、上次失败、Provider、received、written 与 errorCode
+- 内部同步默认关闭，Phase 11 仍仅允许 `mock` Provider；尚未启用 Vercel Cron、Supabase Cron 或真实 CSFloat 同步
 
 ## 7. 当前页面
 
@@ -224,11 +234,35 @@ next.config.ts
 
 ## 8. 下一阶段计划
 
-1. 保持首次生产部署 `MARKET_SYNC_ENABLED=false`，确认 `CRON_SECRET` 与其他 secret 分离
-2. Phase 10 在明确授权下对受保护 route 进行一次受控 smoke test
-3. Route 验证稳定后，再独立评审 Vercel Cron cadence、运行超时和告警策略
-4. CSFloat 同步必须在后续阶段单独解除 Provider 安全门并重新审核
+1. 保持生产 `MARKET_SYNC_ENABLED=false`、`MARKET_SYNC_PROVIDER=mock`，不创建 active Cron
+2. Phase 12 单独处理认证后的 CSFloat Provider 验证；完成前不得解除 Route allowlist
+3. 真实 Provider 稳定后，在“受保护 GET trigger”与“支持 Bearer POST 的 scheduler”之间单独选型
+4. 若需要高于每日一次的频率，再评估 Supabase Cron、HTTP 调用与 secret 管理边界
 5. 持久化同步验证稳定后，再规划页面数据源切换；在此之前页面继续使用 mock
+
+### Scheduled Sync Strategy（Phase 11）
+
+- 当前调度状态为 `manual`，仓库不包含 active `vercel.json` Cron，也没有 Supabase pg_cron job。
+- Vercel Cron 当前向生产路径发送 `GET`，并在配置 `CRON_SECRET` 时附带 `Authorization: Bearer <CRON_SECRET>`。现有内部同步 Route 只接受 `POST`，因此不能直接作为 Vercel Cron target；本阶段不会增加 GET 写入口。
+- Vercel Hobby 当前最小频率为每天一次，且触发时间精度为目标小时范围。若未来需要更高频率，可评估 Supabase Cron；其底层使用 pg_cron，可运行 SQL、数据库函数或 HTTP 调用，但会增加数据库调度和 secret 管理复杂度。
+- `MARKET_SYNC_MAX_RUN_SECONDS` 默认 60 秒，非法、非正数或超过 300 秒的值回退到 60。handler deadline 会终止等待并向 Provider 发送 `AbortSignal`；已取得 run 且能响应 abort 时记录 `failed/TIMEOUT`。数据库完全无响应时，HTTP 仍按 deadline 返回，遗留 lock 由现有 stale-lock 回收机制处理。
+- `MARKET_DATA_STALE_AFTER_SECONDS` 默认 1800 秒。纯逻辑将最后成功同步时间分类为 `fresh`、`stale` 或 `unknown`，不会自动删除数据，也尚未接入 `/market`。
+- `getMarketSyncHealth()` 通过 server-side store 查询 `market_sync_runs` 的最近成功与最近失败，返回 Provider、时间、received、written 和允许列表内的 errorCode；未知错误统一为 `UNKNOWN`，不返回 raw error 或 secret。
+- 重复调用依赖数据库每 Provider 单一 `running` partial unique lock 防并发，并通过 `(provider, external_id)` upsert 保持 listing 幂等；顺序调用可以保留多条 sync run 历史，但不会复制同一 listing。
+
+失败策略：
+
+| 场景 | HTTP | sync run | 旧 listing |
+| --- | ---: | --- | --- |
+| `AUTH_REQUIRED` | 503 | `failed` + 脱敏 errorCode | 保留 |
+| `RATE_LIMITED` | 503 | `failed` + 脱敏 errorCode | 保留 |
+| `PROVIDER_UNAVAILABLE` | 503 | `failed` + 脱敏 errorCode | 保留 |
+| `INVALID_RESPONSE` / `NORMALIZATION_ERROR` | 500 | `failed` + 脱敏 errorCode | 保留 |
+| `SYNC_ALREADY_RUNNING` | 409 | 不创建第二条 run | 保留 |
+| `TIMEOUT` | 504 | 可完成时为 `failed/TIMEOUT`；数据库卡死时由 stale lock 回收 | 保留 |
+| 配置缺失或非法 | 503 | Service 启动前拒绝，不创建 run | 保留 |
+
+生产启用仍必须同时满足正确 `CRON_SECRET`、显式 `MARKET_SYNC_ENABLED=true`、Provider allowlist、Supabase 配置和 Provider 配置。Phase 11 allowlist 只有 `mock`；`csfloat` 仍被禁止。
 
 ## 9. 编码规范
 

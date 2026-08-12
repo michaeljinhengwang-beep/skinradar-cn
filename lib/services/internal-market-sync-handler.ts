@@ -1,15 +1,23 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { getMarketSyncScheduleConfig } from "../config/market-sync-schedule.ts";
 import { MarketProviderError } from "../providers/errors.ts";
 import { SyncAlreadyRunningError } from "./market-sync-service.ts";
+import {
+  MarketSyncTimeoutError,
+  runWithMarketSyncTimeout,
+} from "./market-sync-timeout.ts";
 import { SupabaseConfigurationError } from "../supabase/server-config.ts";
-import type { MarketSyncResult } from "../../types/market-sync.ts";
+import type {
+  MarketSyncExecutionOptions,
+  MarketSyncResult,
+} from "../../types/market-sync.ts";
 
 export type InternalMarketSyncEnvironment = Readonly<
   Record<string, string | undefined>
 >;
 
 type MarketSyncExecutor = {
-  sync(): Promise<MarketSyncResult>;
+  sync(options?: MarketSyncExecutionOptions): Promise<MarketSyncResult>;
 };
 
 export type InternalMarketSyncDependencies = {
@@ -21,6 +29,7 @@ export type InternalMarketSyncConfig = {
   readonly cronSecret: string | null;
   readonly enabled: boolean;
   readonly provider: "mock" | null;
+  readonly maxRunSeconds: number;
 };
 
 const NO_STORE_HEADERS = {
@@ -56,6 +65,10 @@ function isAuthorized(request: Request, cronSecret: string) {
 }
 
 function providerFailureStatus(errorCode: string) {
+  if (errorCode === "TIMEOUT") {
+    return 504;
+  }
+
   return ["AUTH_REQUIRED", "RATE_LIMITED", "PROVIDER_UNAVAILABLE"].includes(
     errorCode,
   )
@@ -67,15 +80,13 @@ export function resolveInternalMarketSyncConfig(
   environment: InternalMarketSyncEnvironment,
 ): InternalMarketSyncConfig {
   const cronSecret = environment.CRON_SECRET?.trim() || null;
-  const enabled =
-    environment.MARKET_SYNC_ENABLED?.trim().toLowerCase() === "true";
-  const configuredProvider =
-    environment.MARKET_SYNC_PROVIDER?.trim().toLowerCase() || "mock";
+  const schedule = getMarketSyncScheduleConfig(environment);
 
   return {
     cronSecret,
-    enabled,
-    provider: configuredProvider === "mock" ? "mock" : null,
+    enabled: schedule.enabled,
+    provider: schedule.provider,
+    maxRunSeconds: schedule.maxRunSeconds,
   };
 }
 
@@ -115,7 +126,10 @@ export async function handleMarketSyncRequest(
   }
 
   try {
-    const result = await dependencies.createSyncService().sync();
+    const result = await runWithMarketSyncTimeout(
+      (signal) => dependencies.createSyncService().sync({ signal }),
+      config.maxRunSeconds,
+    );
 
     if (result.status !== "success") {
       const errorCode = result.errorCode ?? "SYNC_WRITE_FAILED";
@@ -155,6 +169,13 @@ export async function handleMarketSyncRequest(
       return jsonResponse(
         { ok: false, errorCode: "SYNC_CONFIGURATION_ERROR" },
         503,
+      );
+    }
+
+    if (error instanceof MarketSyncTimeoutError) {
+      return jsonResponse(
+        { ok: false, errorCode: error.code },
+        504,
       );
     }
 

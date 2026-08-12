@@ -8,6 +8,7 @@ import {
   type InternalMarketSyncEnvironment,
 } from "../lib/services/internal-market-sync-handler.ts";
 import { SyncAlreadyRunningError } from "../lib/services/market-sync-service.ts";
+import { MarketSyncTimeoutError } from "../lib/services/market-sync-timeout.ts";
 import type { MarketSyncResult } from "../types/market-sync.ts";
 
 const CRON_SECRET = "internal-cron-secret-for-tests";
@@ -320,6 +321,42 @@ test("a failed Provider result maps to 503", async () => {
     ok: false,
     errorCode: "PROVIDER_UNAVAILABLE",
   });
+});
+
+test("a TIMEOUT result maps to 504", async () => {
+  const { dependencies } = createFakeDependencies(ENABLED_ENVIRONMENT, {
+    result: {
+      ...SUCCESS_RESULT,
+      status: "failed",
+      written: 0,
+      errorCode: "TIMEOUT",
+    },
+  });
+  const response = await handleMarketSyncRequest(
+    createRequest(`Bearer ${CRON_SECRET}`),
+    dependencies,
+  );
+
+  assert.equal(response.status, 504);
+  assert.deepEqual(await readJson(response), {
+    ok: false,
+    errorCode: "TIMEOUT",
+  });
+});
+
+test("a thrown timeout maps to a sanitized 504 response", async () => {
+  const { dependencies } = createFakeDependencies(ENABLED_ENVIRONMENT, {
+    error: new MarketSyncTimeoutError(),
+  });
+  const response = await handleMarketSyncRequest(
+    createRequest(`Bearer ${CRON_SECRET}`),
+    dependencies,
+  );
+  const serialized = JSON.stringify(await readJson(response));
+
+  assert.equal(response.status, 504);
+  assert.equal(serialized, JSON.stringify({ ok: false, errorCode: "TIMEOUT" }));
+  assert.ok(!serialized.includes(CRON_SECRET));
 });
 
 test("unexpected failures map to a sanitized 500 response", async () => {

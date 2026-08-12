@@ -431,6 +431,26 @@ test("successful sync completes its persistent run", async () => {
   assert.equal(syncDatabase.completions[0]?.listingsWritten, 1);
 });
 
+test("sequential scheduler invocations upsert one listing and keep run history", async () => {
+  const { client: databaseClient, state } = createFakeDatabaseClient();
+  const syncDatabase = createFakeSyncDatabaseClient();
+  const service = createMarketSyncService({
+    provider: createProvider("csfloat", async () => [normalizedListing]),
+    repository: createPersistentRepository(databaseClient),
+    syncStore: createSupabaseMarketSyncStore(syncDatabase.client),
+    now: () => NOW,
+  });
+
+  const first = await service.sync();
+  const second = await service.sync();
+
+  assert.equal(first.status, "success");
+  assert.equal(second.status, "success");
+  assert.equal(state.rows.length, 1);
+  assert.equal(syncDatabase.starts.length, 2);
+  assert.equal(syncDatabase.completions.length, 2);
+});
+
 test("isolated mock sync normalizes and persists one smoke listing", async () => {
   const { client, state } = createFakeDatabaseClient();
   const syncDatabase = createFakeSyncDatabaseClient();
