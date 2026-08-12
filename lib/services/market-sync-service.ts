@@ -23,6 +23,7 @@ type MarketSyncServiceOptions = {
   readonly provider: MarketDataProvider;
   readonly repository: MarketRepository;
   readonly syncStore: MarketSyncStore;
+  readonly listingsLimit?: number;
   readonly now?: () => Date;
 };
 
@@ -49,6 +50,7 @@ export function createMarketSyncService({
   provider,
   repository,
   syncStore,
+  listingsLimit,
   now = () => new Date(),
 }: MarketSyncServiceOptions) {
   return {
@@ -69,7 +71,10 @@ export function createMarketSyncService({
 
       try {
         assertSyncActive(signal);
-        const externalListings = await provider.getListings({ signal });
+        const externalListings = await provider.getListings({
+          limit: listingsLimit,
+          signal,
+        });
         assertSyncActive(signal);
         received = externalListings.length;
         const listings = normalizeExternalMarketListings(externalListings);

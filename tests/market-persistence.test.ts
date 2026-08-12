@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { mockMarketDataProvider } from "../lib/providers/mock-market-provider.ts";
+import { createCsfloatMarketProvider } from "../lib/providers/csfloat-market-provider.ts";
 import { MarketProviderError } from "../lib/providers/errors.ts";
 import {
   fromMarketListingRow,
@@ -429,6 +430,78 @@ test("successful sync completes its persistent run", async () => {
   assert.equal(syncDatabase.completions[0]?.status, "success");
   assert.equal(syncDatabase.completions[0]?.listingsReceived, 1);
   assert.equal(syncDatabase.completions[0]?.listingsWritten, 1);
+});
+
+test("CSFloat Provider sync uses the configured limit and preserves provider isolation", async () => {
+  const mockRow = toMarketListingRow({
+    ...normalizedListing,
+    externalId: "mock-existing-listing",
+    provider: "mock",
+  });
+  const { client: databaseClient, state } = createFakeDatabaseClient([mockRow]);
+  const syncDatabase = createFakeSyncDatabaseClient();
+  let requestedLimit: string | null = null;
+  const provider = createCsfloatMarketProvider({
+    apiKey: "fictional-csfloat-key",
+    fetchImplementation: async (input) => {
+      requestedLimit = new URL(input).searchParams.get("limit");
+      return new Response(
+        JSON.stringify({
+          cursor: "fictional-cursor",
+          data: [
+            {
+              id: "test-csfloat-listing-001",
+              created_at: FETCHED_AT,
+              type: "buy_now",
+              price: 260000,
+              state: "listed",
+              seller: { username: "fictional-user" },
+              item: {
+                float_value: 0.027965776,
+                market_hash_name:
+                  "AK-47 | Example Skin (Factory New)",
+                item_name: "AK-47 | Example Skin",
+                wear_name: "Factory New",
+                inspect_link: "https://example.invalid/inspect",
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    },
+  });
+  const repository = createSupabaseMarketRepository({
+    client: databaseClient,
+    environment: SUPABASE_TEST_ENV,
+    cacheKey: "market:listings:csfloat",
+    now: () => NOW,
+  });
+  const service = createMarketSyncService({
+    provider,
+    repository,
+    syncStore: createSupabaseMarketSyncStore(syncDatabase.client),
+    listingsLimit: 10,
+    now: () => NOW,
+  });
+
+  const result = await service.sync();
+  const csfloatRow = state.rows.find(({ provider: name }) => name === "csfloat");
+
+  assert.equal(result.status, "success");
+  assert.equal(result.received, 1);
+  assert.equal(result.written, 1);
+  assert.equal(requestedLimit, "10");
+  assert.equal(state.rows.length, 2);
+  assert.equal(state.rows.some(({ provider: name }) => name === "mock"), true);
+  assert.equal(csfloatRow?.price_amount, "2600.00000000");
+  assert.equal(csfloatRow?.currency, "UNSPECIFIED");
+  assert.equal(state.metadata?.cache_key, "market:listings:csfloat");
+  assert.ok(!JSON.stringify(csfloatRow).includes("seller"));
+  assert.ok(!JSON.stringify(csfloatRow).includes("inspect_link"));
 });
 
 test("sequential scheduler invocations upsert one listing and keep run history", async () => {

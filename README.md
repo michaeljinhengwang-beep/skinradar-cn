@@ -6,7 +6,7 @@ SkinRadar CN 是面向中文 CS2 用户的前端产品展示项目，当前提�
 
 项目已形成可构建、可测试的 Next.js 前端展示版。全部饰品报价、价格历史、选手资料、外设配置和新闻内容均为本地模拟数据，不代表真实平台、职业选手、HLTV、Valve 或媒体信息，也不构成购买或投资建议。
 
-当前生产页面没有接入真实 API 或数据库数据，也没有账户、收藏、价格提醒、购买、分析或广告功能，不收集用户个人数据。开发数据库仅用于经过明确授权的隔离架构验证。
+当前生产页面没有接入真实 API 或数据库数据，也没有账户、收藏、价格提醒、购买、分析或广告功能，不收集用户个人数据。开发数据库已用于经过明确授权的隔离验证和一次保留数据的真实 CSFloat 手动同步。
 
 ## 技术栈
 
@@ -90,13 +90,13 @@ MARKET_SYNC_PROVIDER=mock
 
 当前线上页面仍直接使用明确标注的本地模拟数据，尚未启用生产真实市场数据。项目已准备 Market Data Provider、Normalizer 和来源可追踪的安全降级结果；认证后的 CSFloat `limit=1` 只读请求已通过正式 Provider 全链路验证，真实响应使用 `object.data` wrapper，Parser 同时保留 direct array 兼容。验证过程未保存真实 response 或 seller / Steam 用户数据。`MARKET_DATA_PROVIDER` 继续默认且安全回退为 `mock`，`CSFLOAT_API_KEY` 仅可作为服务器 secret，不得添加 `NEXT_PUBLIC_` 前缀或提交真实值。当前没有购买、出价、上架、账户修改或其他交易操作，也不表示已经完成生产接入。
 
-市场数据架构遵循 `Provider → Normalizer → Repository → Service`。当前 Memory Repository 只用于服务端架构验证，线上页面仍使用 `mockSkins`，尚未接入真实数据库、持久化缓存或定时同步。
+市场数据架构遵循 `Provider → Normalizer → Repository → Service`。该链路已完成一次真实 CSFloat `limit=10` 手动同步，并在开发 Supabase 中保留标准化 listing、成功 run 与独立 cache state；线上页面仍使用 `mockSkins`，尚未切换到数据库或定时同步。
 
 ## Database status
 
 项目已准备 Supabase Postgres schema、官方 `@supabase/supabase-js` 服务器 client、持久化 Repository/Sync Store adapter、row mapper 和只读 connectivity check。新项目优先在服务器环境使用 `SUPABASE_SECRET_KEY`，`SUPABASE_SERVICE_ROLE_KEY` 仅作为 legacy compatibility；两者都不得使用 `NEXT_PUBLIC_` 前缀。真实值只放在本地 `.env.local` 或 Vercel Environment Variables，不得提交仓库。
 
-开发 Supabase 已完成三表 connectivity、隔离写入和 Mock Provider 端到端同步验证，所有 smoke-test 数据均已精确清理。migration 仍不会由构建自动执行，市场页面继续使用本地 `mockSkins`，生产真实市场同步尚未启用。
+开发 Supabase 已完成三表 connectivity、隔离写入、Mock Provider 端到端验证和一次真实 CSFloat 手动同步。Smoke-test 数据均已精确清理，真实同步产生的标准化数据按授权保留。migration 仍不会由构建自动执行，市场页面继续使用本地 `mockSkins`，生产自动同步尚未启用。
 
 ## Internal Sync Status
 

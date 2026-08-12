@@ -208,6 +208,7 @@ next.config.ts
 - 依据官方文档建立 CSFloat 只读 listings HTTP client、运行时响应解析和 cents 价格处理
 - 完成一次无 API key、`limit=1` 的 CSFloat 只读兼容性请求；当前环境返回 403，未获得 listing 数组
 - 完成认证后的 CSFloat `limit=1` 只读 Provider 全链路验证；真实响应 wrapper 为 `object.data`，Parser、Provider mapping 与 Normalizer 均通过
+- 完成一次 CSFloat `limit=10` 手动正式同步，通过现有 Sync Service 向开发 Supabase 保留 10 条标准化 listing、成功 run 与独立 cache state
 - 建立来源可追踪的市场报价安全降级结果，真实 Provider 失败时不会把 mock 标记为 CSFloat
 - 建立 Market Repository 接口、Memory Repository、TTL freshness 与 stale cache 服务策略
 - 建立 Supabase/Postgres 持久化 Repository adapter、数据库 row mapper、migration 与同步服务架构
@@ -220,7 +221,7 @@ next.config.ts
 - 建立 server-only scheduler 配置解析、默认 60 秒运行 deadline、Provider `AbortSignal` 和 `TIMEOUT` 脱敏映射
 - 建立默认 1800 秒的 `fresh` / `stale` / `unknown` 市场数据状态纯逻辑
 - 建立基于 `market_sync_runs` 的脱敏同步健康查询，可读取上次成功、上次失败、Provider、received、written 与 errorCode
-- 内部同步默认关闭，Phase 11 仍仅允许 `mock` Provider；尚未启用 Vercel Cron、Supabase Cron 或真实 CSFloat 同步
+- 内部自动同步默认关闭且仍仅允许 `mock` Provider；尚未启用 Vercel Cron、Supabase Cron 或生产 CSFloat 同步
 
 ## 7. 当前页面
 
@@ -337,11 +338,11 @@ next.config.ts
 
 Market Data Provider 架构已经建立，当前默认 Provider 和页面数据源仍为 `mock` / `mockSkins`。项目支持 CSFloat `GET /api/v1/listings` 只读请求，并对 `unknown` JSON 进行运行时解析后再经过 Normalizer；Parser 严格兼容 direct array 与真实确认的 `object.data` wrapper。2026-08-12 已使用服务器端本地密钥完成一次认证后的 `limit=1` 正式 Provider 全链路验证，wrapper Parser、listing Parser、Provider mapping、cents 转换与 Normalizer 均通过。该 live sample 与现有 `item_name` / `state` 必填及 `wear_name` / `float_value` nullable-or-missing 兼容规则没有冲突，未据此放松其他字段校验。验证未保存完整 response、listing 值或 seller / Steam 用户数据。API secret 只能由服务器端环境变量读取，不得传入 Client Component；当前没有交易写操作，也尚未将真实数据接入生产页面或自动同步。
 
-Market Repository 架构现已建立：Memory Repository 仅用于开发和架构验证，保存的是经过 Normalizer 的 SkinRadar 内部 listing，并通过 envelope 追踪 source、fetchedAt、expiresAt、stale 和 fallback。Service 支持 fresh cache、同步刷新、失败时保留 stale cache，以及无缓存时明确标记的 mock fallback。持久化 adapter 与 Sync Service 已在开发 Supabase 上通过隔离 smoke test，但生产 `/market` 仍直接使用 `mockSkins`。
+Market Repository 架构现已建立：Memory Repository 仅用于开发和架构验证，保存的是经过 Normalizer 的 SkinRadar 内部 listing，并通过 envelope 追踪 source、fetchedAt、expiresAt、stale 和 fallback。Service 支持 fresh cache、同步刷新、失败时保留 stale cache，以及无缓存时明确标记的 mock fallback。持久化 adapter 与 Sync Service 已在开发 Supabase 上通过隔离 smoke test，并完成一次保留数据的真实 CSFloat 手动同步；生产 `/market` 仍直接使用 `mockSkins`。
 
 Persistent Market Repository 以 Supabase Postgres 为目标，migration 位于 `supabase/migrations`，必须由用户在开发项目 SQL Editor 手动执行。数据库只保存标准化 listing、cache state 和脱敏 sync run，不保存第三方 raw response、卖家资料或 secret；RLS 已启用，anon/authenticated 默认无表权限，仅服务器 secret/legacy service role 可操作。`market_listings` 使用 `(provider, external_id)` 唯一键，写入通过事务型 RPC upsert listings 与 cache metadata；金额存为 `NUMERIC(24,8)` 十进制主单位，读取 RPC 转为字符串以避免数据库金额先经过 JavaScript 浮点。官方 Supabase SDK client 已封装在 server-only DAL，优先读取 `SUPABASE_SECRET_KEY`，仅在缺失时兼容 legacy `SUPABASE_SERVICE_ROLE_KEY`，且关闭 auth session 持久化。
 
-同步并发的最终保证仍是 `market_sync_runs` 每 Provider 仅允许一条 `running` 记录的部分唯一索引。`MARKET_SYNC_LOCK_TIMEOUT_SECONDS` 默认 900 秒；数据库事务会把超时任务标记为 `failed` 与 `STALE_SYNC_RECOVERED` 后创建新任务，不删除历史记录，active lock 或并发竞态则返回不可获取。开发 Supabase 已完成真实 connectivity、隔离写入和一次 Mock Provider 端到端同步验证。内部 route 仅接受 POST 和 Bearer `CRON_SECRET`，默认 `MARKET_SYNC_ENABLED=false`，Phase 9 仅允许 `MARKET_SYNC_PROVIDER=mock`；Cron 与 CSFloat 同步均未启用，生产页面仍使用 mock。
+同步并发的最终保证仍是 `market_sync_runs` 每 Provider 仅允许一条 `running` 记录的部分唯一索引。`MARKET_SYNC_LOCK_TIMEOUT_SECONDS` 默认 900 秒；数据库事务会把超时任务标记为 `failed` 与 `STALE_SYNC_RECOVERED` 后创建新任务，不删除历史记录，active lock 或并发竞态则返回不可获取。开发 Supabase 已完成真实 connectivity、隔离写入、Mock Provider smoke test，以及一次真实 CSFloat `limit=10` 手动同步。内部 route 仅接受 POST 和 Bearer `CRON_SECRET`，默认 `MARKET_SYNC_ENABLED=false`，且仅允许 `MARKET_SYNC_PROVIDER=mock`；Cron 与自动 CSFloat 同步均未启用，生产页面仍使用 mock。
 
 ## 15. 自动化验证
 
