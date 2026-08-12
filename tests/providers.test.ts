@@ -794,7 +794,7 @@ test("safe listings service preserves timeout and abort failure semantics", asyn
   assert.equal(result.source, "mock");
 });
 
-test("production market pages continue to import mockSkins directly", () => {
+test("market list does not call a Provider while mock detail remains local", () => {
   const marketPage = readFileSync(
     new URL("../app/market/page.tsx", import.meta.url),
     "utf8",
@@ -804,7 +804,7 @@ test("production market pages continue to import mockSkins directly", () => {
     "utf8",
   );
 
-  assert.ok(marketPage.includes("mockSkins"));
+  assert.ok(marketPage.includes("market-read-server"));
   assert.ok(detailPage.includes("mockSkins"));
   assert.ok(!marketPage.includes("getMarketListingsSafely"));
   assert.ok(!detailPage.includes("getMarketListingsSafely"));

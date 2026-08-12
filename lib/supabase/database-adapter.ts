@@ -138,10 +138,13 @@ export function createSupabaseMarketDatabaseAdapter(
       assertNoError(error, "cache metadata read");
       return data;
     },
-    async getMarketListings(provider) {
-      const { data, error } = await client.rpc("read_market_listings", {
+    async getMarketListings(provider, limit) {
+      const query = client.rpc("read_market_listings", {
         p_provider: provider,
       });
+      const { data, error } = await (
+        limit === undefined ? query : query.limit(limit)
+      );
       assertNoError(error, "listing read");
       return data ?? [];
     },

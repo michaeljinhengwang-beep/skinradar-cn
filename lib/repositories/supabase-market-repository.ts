@@ -29,6 +29,7 @@ type SupabaseMarketRepositoryOptions = {
   readonly client: SupabaseMarketDatabaseClient;
   readonly environment?: SupabaseServerEnvironment;
   readonly cacheKey?: string;
+  readonly maxListings?: number;
   readonly ttlSeconds?: number;
   readonly now?: () => Date;
 };
@@ -36,15 +37,33 @@ type SupabaseMarketRepositoryOptions = {
 type ParsedCacheMetadata = Omit<MarketCacheMetadata, "stale">;
 
 const PROVIDERS = new Set<string>(MARKET_DATA_PROVIDER_NAMES);
+const DEFAULT_MAX_LISTINGS = 100;
+
+export class SupabaseMarketRepositoryMappingError extends TypeError {
+  constructor(message: string) {
+    super(message);
+    this.name = "SupabaseMarketRepositoryMappingError";
+  }
+}
+
+function resolveMaxListings(value: number) {
+  return Number.isInteger(value) && value > 0
+    ? Math.min(value, DEFAULT_MAX_LISTINGS)
+    : DEFAULT_MAX_LISTINGS;
+}
 
 function parseMetadata(input: unknown): ParsedCacheMetadata {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
-    throw new TypeError("Market cache metadata must be an object.");
+    throw new SupabaseMarketRepositoryMappingError(
+      "Market cache metadata must be an object.",
+    );
   }
 
   const row = input as Record<string, unknown>;
   if (typeof row.source !== "string" || !PROVIDERS.has(row.source)) {
-    throw new TypeError("Market cache metadata source is invalid.");
+    throw new SupabaseMarketRepositoryMappingError(
+      "Market cache metadata source is invalid.",
+    );
   }
   if (
     typeof row.fetched_at !== "string" ||
@@ -53,7 +72,9 @@ function parseMetadata(input: unknown): ParsedCacheMetadata {
     !Number.isFinite(Date.parse(row.expires_at)) ||
     typeof row.fallback !== "boolean"
   ) {
-    throw new TypeError("Market cache metadata timestamps are invalid.");
+    throw new SupabaseMarketRepositoryMappingError(
+      "Market cache metadata timestamps are invalid.",
+    );
   }
 
   return {
@@ -78,11 +99,13 @@ export function createSupabaseMarketRepository({
   client,
   environment = process.env,
   cacheKey = "market:listings",
+  maxListings = DEFAULT_MAX_LISTINGS,
   ttlSeconds = getMarketCacheTtlSeconds(),
   now = () => new Date(),
 }: SupabaseMarketRepositoryOptions): MarketRepository {
   getSupabaseServerConfig(environment);
   const cacheTtlSeconds = resolveMarketCacheTtlSeconds(ttlSeconds);
+  const listingsLimit = resolveMaxListings(maxListings);
 
   async function getMetadata(): Promise<MarketCacheMetadata | null> {
     const row = await client.getMarketCacheMetadata(cacheKey);
@@ -96,10 +119,14 @@ export function createSupabaseMarketRepository({
         return null;
       }
 
-      const rows = await client.getMarketListings(metadata.source);
+      const rows = (
+        await client.getMarketListings(metadata.source, listingsLimit)
+      ).slice(0, listingsLimit);
       const data = rows.map(fromMarketListingRow);
       if (data.some(({ provider }) => provider !== metadata.source)) {
-        throw new TypeError("Market cache contains a mismatched provider.");
+        throw new SupabaseMarketRepositoryMappingError(
+          "Market cache contains a mismatched provider.",
+        );
       }
 
       return { data, ...metadata };

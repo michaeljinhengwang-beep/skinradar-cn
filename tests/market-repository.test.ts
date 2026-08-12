@@ -453,7 +453,7 @@ test("Repository initialization from existing mock adapter does not mutate mockS
   assert.equal(JSON.stringify(mockSkins), snapshot);
 });
 
-test("market pages remain isolated from Repository and Service imports", () => {
+test("market list uses the read-only service while mock detail stays isolated", () => {
   const marketPage = readFileSync(
     new URL("../app/market/page.tsx", import.meta.url),
     "utf8",
@@ -463,7 +463,7 @@ test("market pages remain isolated from Repository and Service imports", () => {
     "utf8",
   );
 
-  assert.ok(marketPage.includes("mockSkins"));
+  assert.ok(marketPage.includes("market-read-server"));
   assert.ok(detailPage.includes("mockSkins"));
   assert.ok(!marketPage.includes("market-data-service"));
   assert.ok(!detailPage.includes("market-data-service"));

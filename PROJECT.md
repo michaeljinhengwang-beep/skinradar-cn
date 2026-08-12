@@ -72,6 +72,10 @@ components/
   market/
     MarketExplorer.tsx
     MarketFilters.tsx
+    MarketListingExplorer.tsx
+    MarketListingFilters.tsx
+    MarketListingCard.tsx
+    MarketListingGrid.tsx
     PlatformQuotes.tsx
     PriceChange.tsx
     PriceHistoryTable.tsx
@@ -107,6 +111,7 @@ lib/
   home.ts
   site.ts
   market.ts
+  market-listings.ts
   market-validation.ts
   players.ts
   player-validation.ts
@@ -129,6 +134,8 @@ lib/
   services/
     internal-market-sync-handler.ts
     market-data-service.ts
+    market-read-service.ts
+    market-read-server.ts
     market-sync-health.ts
     market-sync-service.ts
     market-sync-timeout.ts
@@ -209,6 +216,8 @@ next.config.ts
 - 完成一次无 API key、`limit=1` 的 CSFloat 只读兼容性请求；当前环境返回 403，未获得 listing 数组
 - 完成认证后的 CSFloat `limit=1` 只读 Provider 全链路验证；真实响应 wrapper 为 `object.data`，Parser、Provider mapping 与 Normalizer 均通过
 - 完成一次 CSFloat `limit=10` 手动正式同步，通过现有 Sync Service 向开发 Supabase 保留 10 条标准化 listing、成功 run 与独立 cache state
+- `/market` 已通过 server-only 读取服务展示 Supabase 中最近同步的 CSFloat listing；读取失败或无数据时明确回退到本地模拟数据
+- 真实市场模式支持关键词、武器、磨损筛选和价格排序，不伪造稀有度、涨跌幅、历史价格或在售数量
 - 建立来源可追踪的市场报价安全降级结果，真实 Provider 失败时不会把 mock 标记为 CSFloat
 - 建立 Market Repository 接口、Memory Repository、TTL freshness 与 stale cache 服务策略
 - 建立 Supabase/Postgres 持久化 Repository adapter、数据库 row mapper、migration 与同步服务架构
@@ -226,7 +235,7 @@ next.config.ts
 ## 7. 当前页面
 
 - `/`：统一产品入口，包含模拟数据声明、功能概览、数据集统计，以及市场、选手和新闻轻量预览
-- `/market`：使用明确标注的本地模拟数据演示饰品搜索、筛选和排序
+- `/market`：优先展示 Supabase 中最近同步的 CSFloat 市场数据，并在不可用时明确回退到本地模拟数据
 - `/market/[id]`：展示单个模拟饰品的基础信息、模拟平台报价和模拟价格历史
 - `/players`：使用明确标注的虚构本地资料演示选手搜索、筛选、排序、模拟准星及完整外设配置
 - `/players/[id]`：通过静态参数生成展示单个虚构选手的完整游戏设置、模拟准星和外设配置
@@ -240,7 +249,7 @@ next.config.ts
 2. Phase 12 已完成认证后的 CSFloat Provider 只读验证；解除 Route allowlist 前仍需单独审计生产同步配置与失败策略
 3. 真实 Provider 稳定后，在“受保护 GET trigger”与“支持 Bearer POST 的 scheduler”之间单独选型
 4. 若需要高于每日一次的频率，再评估 Supabase Cron、HTTP 调用与 secret 管理边界
-5. 持久化同步验证稳定后，再规划页面数据源切换；在此之前页面继续使用 mock
+5. 验证真实市场目录稳定性后，再单独规划真实 listing 详情页或首页 Market Preview 的数据源切换
 
 ### Scheduled Sync Strategy（Phase 11）
 
@@ -248,7 +257,7 @@ next.config.ts
 - Vercel Cron 当前向生产路径发送 `GET`，并在配置 `CRON_SECRET` 时附带 `Authorization: Bearer <CRON_SECRET>`。现有内部同步 Route 只接受 `POST`，因此不能直接作为 Vercel Cron target；本阶段不会增加 GET 写入口。
 - Vercel Hobby 当前最小频率为每天一次，且触发时间精度为目标小时范围。若未来需要更高频率，可评估 Supabase Cron；其底层使用 pg_cron，可运行 SQL、数据库函数或 HTTP 调用，但会增加数据库调度和 secret 管理复杂度。
 - `MARKET_SYNC_MAX_RUN_SECONDS` 默认 60 秒，非法、非正数或超过 300 秒的值回退到 60。handler deadline 会终止等待并向 Provider 发送 `AbortSignal`；已取得 run 且能响应 abort 时记录 `failed/TIMEOUT`。数据库完全无响应时，HTTP 仍按 deadline 返回，遗留 lock 由现有 stale-lock 回收机制处理。
-- `MARKET_DATA_STALE_AFTER_SECONDS` 默认 1800 秒。纯逻辑将最后成功同步时间分类为 `fresh`、`stale` 或 `unknown`，不会自动删除数据，也尚未接入 `/market`。
+- `MARKET_DATA_STALE_AFTER_SECONDS` 默认 1800 秒。`/market` 将最近同步时间分类为 `fresh` 或 `stale`，过期数据仍可展示并明确提示，不会自动删除。
 - `getMarketSyncHealth()` 通过 server-side store 查询 `market_sync_runs` 的最近成功与最近失败，返回 Provider、时间、received、written 和允许列表内的 errorCode；未知错误统一为 `UNKNOWN`，不返回 raw error 或 secret。
 - 重复调用依赖数据库每 Provider 单一 `running` partial unique lock 防并发，并通过 `(provider, external_id)` upsert 保持 listing 幂等；顺序调用可以保留多条 sync run 历史，但不会复制同一 listing。
 
@@ -336,13 +345,13 @@ next.config.ts
 
 在真实 API、数据库或经过验证的数据源接入前，任何模拟数据都不能描述为真实平台数据、实时数据或实际市场行情。首页当前显示的统计数字直接来自本地 mock 数组长度，只代表演示数据集规模，不代表 SkinRadar 已具备对应的数据覆盖与更新能力。
 
-Market Data Provider 架构已经建立，当前默认 Provider 和页面数据源仍为 `mock` / `mockSkins`。项目支持 CSFloat `GET /api/v1/listings` 只读请求，并对 `unknown` JSON 进行运行时解析后再经过 Normalizer；Parser 严格兼容 direct array 与真实确认的 `object.data` wrapper。2026-08-12 已使用服务器端本地密钥完成一次认证后的 `limit=1` 正式 Provider 全链路验证，wrapper Parser、listing Parser、Provider mapping、cents 转换与 Normalizer 均通过。该 live sample 与现有 `item_name` / `state` 必填及 `wear_name` / `float_value` nullable-or-missing 兼容规则没有冲突，未据此放松其他字段校验。验证未保存完整 response、listing 值或 seller / Steam 用户数据。API secret 只能由服务器端环境变量读取，不得传入 Client Component；当前没有交易写操作，也尚未将真实数据接入生产页面或自动同步。
+Market Data Provider 架构已经建立，自动同步 Provider 仍默认使用 `mock`；`/market` 页面则通过 server-only Repository 优先读取 Supabase 中的 `csfloat` cache，并保留明确的 `mockSkins` fallback。项目支持 CSFloat `GET /api/v1/listings` 只读请求，并对 `unknown` JSON 进行运行时解析后再经过 Normalizer；Parser 严格兼容 direct array 与真实确认的 `object.data` wrapper。2026-08-12 已使用服务器端本地密钥完成一次认证后的 `limit=1` 正式 Provider 全链路验证，wrapper Parser、listing Parser、Provider mapping、cents 转换与 Normalizer 均通过。该 live sample 与现有 `item_name` / `state` 必填及 `wear_name` / `float_value` nullable-or-missing 兼容规则没有冲突，未据此放松其他字段校验。验证未保存完整 response、listing 值或 seller / Steam 用户数据。API secret 只能由服务器端环境变量读取，不得传入 Client Component；当前没有交易写操作，也没有启用自动同步，真实 listing 仅由 `/market` 服务端读取并展示。
 
-Market Repository 架构现已建立：Memory Repository 仅用于开发和架构验证，保存的是经过 Normalizer 的 SkinRadar 内部 listing，并通过 envelope 追踪 source、fetchedAt、expiresAt、stale 和 fallback。Service 支持 fresh cache、同步刷新、失败时保留 stale cache，以及无缓存时明确标记的 mock fallback。持久化 adapter 与 Sync Service 已在开发 Supabase 上通过隔离 smoke test，并完成一次保留数据的真实 CSFloat 手动同步；生产 `/market` 仍直接使用 `mockSkins`。
+Market Repository 架构现已建立：Memory Repository 仅用于开发和架构验证，保存的是经过 Normalizer 的 SkinRadar 内部 listing，并通过 envelope 追踪 source、fetchedAt、expiresAt、stale 和 fallback。Service 支持 fresh cache、同步刷新、失败时保留 stale cache，以及无缓存时明确标记的 mock fallback。持久化 adapter 与 Sync Service 已在开发 Supabase 上通过隔离 smoke test，并完成一次保留数据的真实 CSFloat 手动同步；`/market` 现已优先只读该独立 cache，失败时回退到 `mockSkins`。
 
 Persistent Market Repository 以 Supabase Postgres 为目标，migration 位于 `supabase/migrations`，必须由用户在开发项目 SQL Editor 手动执行。数据库只保存标准化 listing、cache state 和脱敏 sync run，不保存第三方 raw response、卖家资料或 secret；RLS 已启用，anon/authenticated 默认无表权限，仅服务器 secret/legacy service role 可操作。`market_listings` 使用 `(provider, external_id)` 唯一键，写入通过事务型 RPC upsert listings 与 cache metadata；金额存为 `NUMERIC(24,8)` 十进制主单位，读取 RPC 转为字符串以避免数据库金额先经过 JavaScript 浮点。官方 Supabase SDK client 已封装在 server-only DAL，优先读取 `SUPABASE_SECRET_KEY`，仅在缺失时兼容 legacy `SUPABASE_SERVICE_ROLE_KEY`，且关闭 auth session 持久化。
 
-同步并发的最终保证仍是 `market_sync_runs` 每 Provider 仅允许一条 `running` 记录的部分唯一索引。`MARKET_SYNC_LOCK_TIMEOUT_SECONDS` 默认 900 秒；数据库事务会把超时任务标记为 `failed` 与 `STALE_SYNC_RECOVERED` 后创建新任务，不删除历史记录，active lock 或并发竞态则返回不可获取。开发 Supabase 已完成真实 connectivity、隔离写入、Mock Provider smoke test，以及一次真实 CSFloat `limit=10` 手动同步。内部 route 仅接受 POST 和 Bearer `CRON_SECRET`，默认 `MARKET_SYNC_ENABLED=false`，且仅允许 `MARKET_SYNC_PROVIDER=mock`；Cron 与自动 CSFloat 同步均未启用，生产页面仍使用 mock。
+同步并发的最终保证仍是 `market_sync_runs` 每 Provider 仅允许一条 `running` 记录的部分唯一索引。`MARKET_SYNC_LOCK_TIMEOUT_SECONDS` 默认 900 秒；数据库事务会把超时任务标记为 `failed` 与 `STALE_SYNC_RECOVERED` 后创建新任务，不删除历史记录，active lock 或并发竞态则返回不可获取。开发 Supabase 已完成真实 connectivity、隔离写入、Mock Provider smoke test，以及一次真实 CSFloat `limit=10` 手动同步。内部 route 仅接受 POST 和 Bearer `CRON_SECRET`，默认 `MARKET_SYNC_ENABLED=false`，且仅允许 `MARKET_SYNC_PROVIDER=mock`；Cron 与自动 CSFloat 同步均未启用，`/market` 只读取已经同步的数据。
 
 ## 15. 自动化验证
 

@@ -43,6 +43,7 @@ export interface SupabaseMarketDatabaseClient {
   ): Promise<unknown | null>;
   getMarketListings(
     provider: MarketDataProviderName,
+    limit?: number,
   ): Promise<readonly unknown[]>;
   getMarketListing(
     provider: MarketDataProviderName,

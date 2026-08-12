@@ -61,6 +61,7 @@ type FakeDatabaseState = {
   rows: MarketListingRow[];
   metadata: MarketCacheStateWriteRow | null;
   operations: string[];
+  listingReadLimits: Array<number | undefined>;
 };
 
 function materializeRow(
@@ -83,6 +84,7 @@ function createFakeDatabaseClient(
     rows: initialRows.map(materializeRow),
     metadata: initialMetadata ? { ...initialMetadata } : null,
     operations: [],
+    listingReadLimits: [],
   };
 
   const client: SupabaseMarketDatabaseClient = {
@@ -92,8 +94,9 @@ function createFakeDatabaseClient(
         ? { ...state.metadata }
         : null;
     },
-    async getMarketListings(provider) {
+    async getMarketListings(provider, limit) {
       state.operations.push("select-listings");
+      state.listingReadLimits.push(limit);
       return state.rows
         .filter((row) => row.provider === provider)
         .map((row) => ({ ...row }));
@@ -285,6 +288,27 @@ test("Supabase Repository maps getListings rows", async () => {
 
   assert.deepEqual(result?.data, [normalizedListing]);
   assert.equal(result?.stale, false);
+});
+
+test("Supabase Repository caps page-facing listing reads", async () => {
+  const rows = Array.from({ length: 105 }, (_, index) =>
+    toMarketListingRow({
+      ...normalizedListing,
+      externalId: `listing-${String(index).padStart(3, "0")}`,
+    }),
+  );
+  const { client, state } = createFakeDatabaseClient(rows, {
+    cache_key: "market:listings",
+    source: "csfloat",
+    fetched_at: FETCHED_AT,
+    expires_at: "2026-08-11T08:05:00.000Z",
+    fallback: false,
+  });
+
+  const result = await createPersistentRepository(client).getListings();
+
+  assert.equal(result?.data.length, 100);
+  assert.deepEqual(state.listingReadLimits, [100]);
 });
 
 test("Supabase Repository maps getListingById", async () => {
@@ -782,7 +806,7 @@ test("migration uses server-only RLS and avoids destructive full-table writes", 
   assert.doesNotMatch(sql, /delete\s+from|truncate/iu);
 });
 
-test("market pages continue to use mockSkins directly", () => {
+test("market list uses the server read service while mock detail stays isolated", () => {
   const marketPage = readFileSync(
     new URL("../app/market/page.tsx", import.meta.url),
     "utf8",
@@ -792,8 +816,8 @@ test("market pages continue to use mockSkins directly", () => {
     "utf8",
   );
 
-  assert.match(marketPage, /mockSkins/u);
+  assert.match(marketPage, /getMarketPageData/u);
   assert.match(detailPage, /mockSkins/u);
-  assert.doesNotMatch(marketPage, /supabase/iu);
+  assert.doesNotMatch(marketPage, /csfloat-market-provider/iu);
   assert.doesNotMatch(detailPage, /supabase/iu);
 });

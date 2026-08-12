@@ -6,7 +6,7 @@ SkinRadar CN 是面向中文 CS2 用户的前端产品展示项目，当前提�
 
 项目已形成可构建、可测试的 Next.js 前端展示版。全部饰品报价、价格历史、选手资料、外设配置和新闻内容均为本地模拟数据，不代表真实平台、职业选手、HLTV、Valve 或媒体信息，也不构成购买或投资建议。
 
-当前生产页面没有接入真实 API 或数据库数据，也没有账户、收藏、价格提醒、购买、分析或广告功能，不收集用户个人数据。开发数据库已用于经过明确授权的隔离验证和一次保留数据的真实 CSFloat 手动同步。
+当前 `/market` 通过服务器端只读 Repository 优先展示开发 Supabase 中最近同步的 CSFloat listing；读取失败或无数据时会明确回退到本地模拟数据。页面不直接请求 CSFloat，也没有账户、收藏、价格提醒、购买、分析或广告功能，不收集用户个人数据。
 
 ## 技术栈
 
@@ -88,9 +88,9 @@ MARKET_SYNC_PROVIDER=mock
 
 ## 真实数据接入状态
 
-当前线上页面仍直接使用明确标注的本地模拟数据，尚未启用生产真实市场数据。项目已准备 Market Data Provider、Normalizer 和来源可追踪的安全降级结果；认证后的 CSFloat `limit=1` 只读请求已通过正式 Provider 全链路验证，真实响应使用 `object.data` wrapper，Parser 同时保留 direct array 兼容。验证过程未保存真实 response 或 seller / Steam 用户数据。`MARKET_DATA_PROVIDER` 继续默认且安全回退为 `mock`，`CSFLOAT_API_KEY` 仅可作为服务器 secret，不得添加 `NEXT_PUBLIC_` 前缀或提交真实值。当前没有购买、出价、上架、账户修改或其他交易操作，也不表示已经完成生产接入。
+当前市场目录已支持最近同步的真实市场数据与明确标注的模拟 fallback；首页预览和模拟详情页仍使用本地模拟数据。项目已准备 Market Data Provider、Normalizer 和来源可追踪的安全降级结果；认证后的 CSFloat `limit=1` 只读请求已通过正式 Provider 全链路验证，真实响应使用 `object.data` wrapper，Parser 同时保留 direct array 兼容。验证过程未保存真实 response 或 seller / Steam 用户数据。`MARKET_DATA_PROVIDER` 继续默认且安全回退为 `mock`，`CSFLOAT_API_KEY` 仅可作为服务器 secret，不得添加 `NEXT_PUBLIC_` 前缀或提交真实值。当前没有购买、出价、上架、账户修改或其他交易操作，也没有启用自动同步。
 
-市场数据架构遵循 `Provider → Normalizer → Repository → Service`。该链路已完成一次真实 CSFloat `limit=10` 手动同步，并在开发 Supabase 中保留标准化 listing、成功 run 与独立 cache state；线上页面仍使用 `mockSkins`，尚未切换到数据库或定时同步。
+市场数据架构遵循 `Provider → Normalizer → Repository → Service`。该链路已完成一次真实 CSFloat `limit=10` 手动同步，并在开发 Supabase 中保留标准化 listing、成功 run 与独立 cache state；`/market` 仅从该 cache 执行服务器端 SELECT，不会在页面请求期间触发 Provider 或同步写入。
 
 ## Database status
 
@@ -150,7 +150,7 @@ npm run start
 
 - 所有内容均为本地模拟数据，没有实时价格或官方数据来源。
 - 登录、注册、收藏、提醒和购买均未实现。
-- 生产页面不读取开发数据库；内部同步入口默认关闭，且未启用 Cron。
+- `/market` 依赖已配置的 Supabase 只读访问；不可用时回退模拟数据。内部同步入口默认关闭，且未启用 Cron。
 - 没有分析 SDK、广告、Cookie 或浏览器端第三方脚本。
 - 没有准备远程 Open Graph 分享图片或完整离线 PWA 能力。
 
