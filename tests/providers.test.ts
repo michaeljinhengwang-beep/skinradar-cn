@@ -246,6 +246,79 @@ test("CSFloat parser accepts the documented minimal listing fields", () => {
   );
 });
 
+test("CSFloat parser accepts the live-confirmed data wrapper", () => {
+  const result = parseCSFloatListingsResponse({
+    cursor: "test-cursor",
+    data: [officialMinimalListing],
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, officialMinimalListing.id);
+});
+
+test("CSFloat Provider processes the live-confirmed data wrapper", async () => {
+  const provider = createResponseProvider(
+    jsonResponse({
+      cursor: "test-cursor",
+      data: [officialMinimalListing],
+    }),
+  );
+  const [listing] = await provider.getListings();
+
+  assert.equal(listing.externalId, officialMinimalListing.id);
+  assert.equal(listing.provider, "csfloat");
+});
+
+test("CSFloat parser rejects a wrapper whose data field is not an array", () => {
+  assert.throws(
+    () => parseCSFloatListingsResponse({ data: {} }),
+    (error: unknown) =>
+      error instanceof MarketProviderError &&
+      error.code === "INVALID_RESPONSE" &&
+      error.message.includes("response.data"),
+  );
+});
+
+test("CSFloat parser rejects a null response", () => {
+  assert.throws(
+    () => parseCSFloatListingsResponse(null),
+    (error: unknown) =>
+      error instanceof MarketProviderError &&
+      error.code === "INVALID_RESPONSE",
+  );
+});
+
+test("CSFloat parser does not mutate a wrapped response", () => {
+  const input = {
+    cursor: "test-cursor",
+    data: [structuredClone(officialMinimalListing)],
+  };
+  const snapshot = JSON.stringify(input);
+
+  parseCSFloatListingsResponse(input);
+
+  assert.equal(JSON.stringify(input), snapshot);
+});
+
+test("CSFloat parser drops seller and raw item fields from wrapped data", () => {
+  const [listing] = parseCSFloatListingsResponse({
+    cursor: "test-cursor",
+    data: [
+      {
+        ...officialMinimalListing,
+        seller: { username: "fictional-user" },
+        item: {
+          ...officialMinimalListing.item,
+          inspect_link: "https://example.invalid/inspect",
+        },
+      },
+    ],
+  });
+
+  assert.equal("seller" in listing, false);
+  assert.equal("inspect_link" in listing.item, false);
+});
+
 test("CSFloat Provider converts documented cents to a major price unit", async () => {
   const provider = createResponseProvider(
     jsonResponse([officialMinimalListing]),

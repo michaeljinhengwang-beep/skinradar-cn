@@ -99,12 +99,23 @@ function parseListing(value: unknown, index: number): CSFloatListingResponse {
   };
 }
 
+function extractListings(input: unknown): readonly unknown[] {
+  if (Array.isArray(input)) {
+    return input;
+  }
+
+  const envelope = requireRecord(input, "CSFloat listings response");
+  if (!Array.isArray(envelope.data)) {
+    return invalidResponse(
+      "CSFloat listings response.data must be an array.",
+    );
+  }
+
+  return envelope.data;
+}
+
 export function parseCSFloatListingsResponse(
   input: unknown,
 ): CSFloatListingsResponse {
-  if (!Array.isArray(input)) {
-    return invalidResponse("CSFloat listings response must be an array.");
-  }
-
-  return input.map(parseListing);
+  return extractListings(input).map(parseListing);
 }
