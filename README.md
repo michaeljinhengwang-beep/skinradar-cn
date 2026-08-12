@@ -88,7 +88,7 @@ MARKET_SYNC_PROVIDER=mock
 
 ## 真实数据接入状态
 
-当前线上页面仍直接使用明确标注的本地模拟数据，尚未启用生产真实市场数据。项目已准备 Market Data Provider、Normalizer 和来源可追踪的安全降级结果，并依据官方文档支持 CSFloat active listings 的只读 GET client。一次无 key、`limit=1` 的兼容性请求在当前环境返回 403，尚未取得真实 listing 数组；`MARKET_DATA_PROVIDER` 继续默认且安全回退为 `mock`。`CSFLOAT_API_KEY` 仅可作为服务器 secret，不得添加 `NEXT_PUBLIC_` 前缀或提交真实值。当前没有购买、出价、上架、账户修改或其他交易操作，也不表示已经完成生产接入。
+当前线上页面仍直接使用明确标注的本地模拟数据，尚未启用生产真实市场数据。项目已准备 Market Data Provider、Normalizer 和来源可追踪的安全降级结果；认证后的 CSFloat `limit=1` 只读请求已通过正式 Provider 全链路验证，真实响应使用 `object.data` wrapper，Parser 同时保留 direct array 兼容。验证过程未保存真实 response 或 seller / Steam 用户数据。`MARKET_DATA_PROVIDER` 继续默认且安全回退为 `mock`，`CSFLOAT_API_KEY` 仅可作为服务器 secret，不得添加 `NEXT_PUBLIC_` 前缀或提交真实值。当前没有购买、出价、上架、账户修改或其他交易操作，也不表示已经完成生产接入。
 
 市场数据架构遵循 `Provider → Normalizer → Repository → Service`。当前 Memory Repository 只用于服务端架构验证，线上页面仍使用 `mockSkins`，尚未接入真实数据库、持久化缓存或定时同步。
 

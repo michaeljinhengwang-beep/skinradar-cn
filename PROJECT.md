@@ -207,6 +207,7 @@ next.config.ts
 - 建立 Market Data Provider、统一外部报价模型、Normalizer、Mock 适配器与 CSFloat 未联网骨架
 - 依据官方文档建立 CSFloat 只读 listings HTTP client、运行时响应解析和 cents 价格处理
 - 完成一次无 API key、`limit=1` 的 CSFloat 只读兼容性请求；当前环境返回 403，未获得 listing 数组
+- 完成认证后的 CSFloat `limit=1` 只读 Provider 全链路验证；真实响应 wrapper 为 `object.data`，Parser、Provider mapping 与 Normalizer 均通过
 - 建立来源可追踪的市场报价安全降级结果，真实 Provider 失败时不会把 mock 标记为 CSFloat
 - 建立 Market Repository 接口、Memory Repository、TTL freshness 与 stale cache 服务策略
 - 建立 Supabase/Postgres 持久化 Repository adapter、数据库 row mapper、migration 与同步服务架构
@@ -235,7 +236,7 @@ next.config.ts
 ## 8. 下一阶段计划
 
 1. 保持生产 `MARKET_SYNC_ENABLED=false`、`MARKET_SYNC_PROVIDER=mock`，不创建 active Cron
-2. Phase 12 单独处理认证后的 CSFloat Provider 验证；完成前不得解除 Route allowlist
+2. Phase 12 已完成认证后的 CSFloat Provider 只读验证；解除 Route allowlist 前仍需单独审计生产同步配置与失败策略
 3. 真实 Provider 稳定后，在“受保护 GET trigger”与“支持 Bearer POST 的 scheduler”之间单独选型
 4. 若需要高于每日一次的频率，再评估 Supabase Cron、HTTP 调用与 secret 管理边界
 5. 持久化同步验证稳定后，再规划页面数据源切换；在此之前页面继续使用 mock
@@ -334,7 +335,7 @@ next.config.ts
 
 在真实 API、数据库或经过验证的数据源接入前，任何模拟数据都不能描述为真实平台数据、实时数据或实际市场行情。首页当前显示的统计数字直接来自本地 mock 数组长度，只代表演示数据集规模，不代表 SkinRadar 已具备对应的数据覆盖与更新能力。
 
-Market Data Provider 架构已经建立，当前默认 Provider 和页面数据源仍为 `mock` / `mockSkins`。项目仅依据官方文档支持 CSFloat `GET /api/v1/listings` 只读请求，并对 `unknown` JSON 进行运行时解析后再经过 Normalizer；自动测试使用注入的假 `fetch`，不依赖真实网络。2026-08-11 曾执行一次无 API key 的 `GET https://csfloat.com/api/v1/listings?limit=1` 兼容性验证，当前请求环境返回 HTTP 403，未取得 listings 数组，因此 Phase 2 parser 尚未被真实 listing 完整验证，也没有据此放松校验。API secret 只能由服务器端环境变量读取，不得传入 Client Component。当前没有交易写操作，也尚未将真实数据接入生产页面；下一步是在隔离的开发环境验证持久化 adapter 和同步事务边界。
+Market Data Provider 架构已经建立，当前默认 Provider 和页面数据源仍为 `mock` / `mockSkins`。项目支持 CSFloat `GET /api/v1/listings` 只读请求，并对 `unknown` JSON 进行运行时解析后再经过 Normalizer；Parser 严格兼容 direct array 与真实确认的 `object.data` wrapper。2026-08-12 已使用服务器端本地密钥完成一次认证后的 `limit=1` 正式 Provider 全链路验证，wrapper Parser、listing Parser、Provider mapping、cents 转换与 Normalizer 均通过。该 live sample 与现有 `item_name` / `state` 必填及 `wear_name` / `float_value` nullable-or-missing 兼容规则没有冲突，未据此放松其他字段校验。验证未保存完整 response、listing 值或 seller / Steam 用户数据。API secret 只能由服务器端环境变量读取，不得传入 Client Component；当前没有交易写操作，也尚未将真实数据接入生产页面或自动同步。
 
 Market Repository 架构现已建立：Memory Repository 仅用于开发和架构验证，保存的是经过 Normalizer 的 SkinRadar 内部 listing，并通过 envelope 追踪 source、fetchedAt、expiresAt、stale 和 fallback。Service 支持 fresh cache、同步刷新、失败时保留 stale cache，以及无缓存时明确标记的 mock fallback。持久化 adapter 与 Sync Service 已在开发 Supabase 上通过隔离 smoke test，但生产 `/market` 仍直接使用 `mockSkins`。
 
