@@ -23,6 +23,8 @@ export type ProviderCurrencyCode = "CAD" | "USD" | "UNSPECIFIED";
 
 export type MarketListingsQuery = {
   readonly limit?: number;
+  readonly targetListings?: number;
+  readonly cursor?: string;
   readonly marketHashName?: string;
   readonly sortBy?: MarketListingSortOption;
   readonly signal?: AbortSignal;

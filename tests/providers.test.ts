@@ -7,9 +7,14 @@ import {
   buildCSFloatListingsUrl,
   createCsfloatMarketProvider,
   DEFAULT_CSFLOAT_LISTINGS_LIMIT,
+  MAX_CSFLOAT_PAGES,
   MAX_CSFLOAT_LISTINGS_LIMIT,
+  MAX_SYNC_LISTINGS,
 } from "../lib/providers/csfloat-market-provider.ts";
-import { parseCSFloatListingsResponse } from "../lib/providers/csfloat-response.ts";
+import {
+  parseCSFloatListingsPageResponse,
+  parseCSFloatListingsResponse,
+} from "../lib/providers/csfloat-response.ts";
 import { MarketProviderError } from "../lib/providers/errors.ts";
 import {
   getMarketDataProvider,
@@ -36,6 +41,19 @@ const officialMinimalListing = {
     wear_name: "Factory New",
   },
 };
+
+function createCSFloatListingFixture(index: number) {
+  return {
+    ...officialMinimalListing,
+    id: `fictional-listing-${String(index).padStart(3, "0")}`,
+    price: 10_000 + index,
+    item: {
+      ...officialMinimalListing.item,
+      market_hash_name: `AK-47 | Fictional Finish ${index} (Factory New)`,
+      item_name: `AK-47 | Fictional Finish ${index}`,
+    },
+  };
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -263,7 +281,7 @@ test("CSFloat Provider processes the live-confirmed data wrapper", async () => {
       data: [officialMinimalListing],
     }),
   );
-  const [listing] = await provider.getListings();
+  const [listing] = await provider.getListings({ targetListings: 1 });
 
   assert.equal(listing.externalId, officialMinimalListing.id);
   assert.equal(listing.provider, "csfloat");
@@ -521,6 +539,280 @@ test("CSFloat listings URL clamps limit above the official maximum", () => {
     url.searchParams.get("limit"),
     String(MAX_CSFLOAT_LISTINGS_LIMIT),
   );
+});
+
+test("CSFloat listings URL propagates the opaque cursor", () => {
+  const url = buildCSFloatListingsUrl({ cursor: "fictional-cursor-2" });
+
+  assert.equal(url.searchParams.get("cursor"), "fictional-cursor-2");
+});
+
+test("CSFloat page parser returns confirmed wrapper data and cursor", () => {
+  const page = parseCSFloatListingsPageResponse({
+    cursor: "fictional-cursor-1",
+    data: [officialMinimalListing],
+  });
+
+  assert.equal(page.cursor, "fictional-cursor-1");
+  assert.equal(page.data.length, 1);
+});
+
+test("CSFloat Provider completes a one-page target without another request", async () => {
+  let requests = 0;
+  const provider = createCsfloatMarketProvider({
+    fetchImplementation: async () => {
+      requests += 1;
+      return jsonResponse({
+        cursor: "unused-next-cursor",
+        data: [createCSFloatListingFixture(1), createCSFloatListingFixture(2)],
+      });
+    },
+  });
+
+  const listings = await provider.getListings({ targetListings: 2 });
+
+  assert.equal(listings.length, 2);
+  assert.equal(requests, 1);
+});
+
+test("CSFloat Provider paginates sequentially and propagates cursors", async () => {
+  const cursors: Array<string | null> = [];
+  let activeRequests = 0;
+  let maximumActiveRequests = 0;
+  const provider = createCsfloatMarketProvider({
+    fetchImplementation: async (input) => {
+      activeRequests += 1;
+      maximumActiveRequests = Math.max(maximumActiveRequests, activeRequests);
+      const cursor = new URL(input).searchParams.get("cursor");
+      cursors.push(cursor);
+      await Promise.resolve();
+      activeRequests -= 1;
+
+      return cursor === null
+        ? jsonResponse({
+            cursor: "fictional-cursor-1",
+            data: [
+              createCSFloatListingFixture(1),
+              createCSFloatListingFixture(2),
+            ],
+          })
+        : jsonResponse({
+            cursor: "fictional-cursor-2",
+            data: [createCSFloatListingFixture(3)],
+          });
+    },
+  });
+
+  const listings = await provider.getListings({ targetListings: 3 });
+
+  assert.equal(listings.length, 3);
+  assert.deepEqual(cursors, [null, "fictional-cursor-1"]);
+  assert.equal(maximumActiveRequests, 1);
+});
+
+test("CSFloat Provider stops exactly at targetListings", async () => {
+  let requests = 0;
+  const provider = createCsfloatMarketProvider({
+    fetchImplementation: async () => {
+      requests += 1;
+      return jsonResponse({
+        cursor: "unused-next-cursor",
+        data: Array.from({ length: 5 }, (_value, index) =>
+          createCSFloatListingFixture(index + 1),
+        ),
+      });
+    },
+  });
+
+  const listings = await provider.getListings({ targetListings: 3 });
+
+  assert.equal(listings.length, 3);
+  assert.equal(requests, 1);
+});
+
+test("CSFloat Provider enforces the 500-listing hard cap", async () => {
+  let requests = 0;
+  const provider = createCsfloatMarketProvider({
+    fetchImplementation: async () => {
+      const page = requests;
+      requests += 1;
+      return jsonResponse({
+        cursor: `fictional-cursor-${requests}`,
+        data: Array.from({ length: MAX_CSFLOAT_LISTINGS_LIMIT }, (_value, index) =>
+          createCSFloatListingFixture(
+            page * MAX_CSFLOAT_LISTINGS_LIMIT + index + 1,
+          ),
+        ),
+      });
+    },
+  });
+
+  const listings = await provider.getListings({ targetListings: 5_000 });
+
+  assert.equal(listings.length, MAX_SYNC_LISTINGS);
+  assert.equal(requests, MAX_CSFLOAT_PAGES);
+});
+
+test("CSFloat Provider rejects pagination beyond the max-page guard", async () => {
+  let requests = 0;
+  const provider = createCsfloatMarketProvider({
+    fetchImplementation: async () => {
+      requests += 1;
+      return jsonResponse({
+        cursor: `fictional-cursor-${requests}`,
+        data: [createCSFloatListingFixture(requests)],
+      });
+    },
+  });
+
+  await assert.rejects(
+    provider.getListings({ targetListings: MAX_SYNC_LISTINGS }),
+    (error: unknown) =>
+      error instanceof MarketProviderError &&
+      error.code === "INVALID_RESPONSE" &&
+      error.receivedListings === MAX_CSFLOAT_PAGES &&
+      error.message.includes("page limit"),
+  );
+  assert.equal(requests, MAX_CSFLOAT_PAGES);
+});
+
+test("CSFloat Provider rejects a duplicate cursor", async () => {
+  let requests = 0;
+  const provider = createCsfloatMarketProvider({
+    fetchImplementation: async () => {
+      requests += 1;
+      return jsonResponse({
+        cursor: "repeated-fictional-cursor",
+        data: [createCSFloatListingFixture(requests)],
+      });
+    },
+  });
+
+  await assert.rejects(
+    provider.getListings({ targetListings: 3 }),
+    (error: unknown) =>
+      error instanceof MarketProviderError &&
+      error.code === "INVALID_RESPONSE" &&
+      error.receivedListings === 1 &&
+      error.message.includes("duplicate cursor"),
+  );
+  assert.equal(requests, 2);
+});
+
+test("CSFloat Provider deduplicates listings across pages", async () => {
+  let requests = 0;
+  const provider = createCsfloatMarketProvider({
+    fetchImplementation: async () => {
+      requests += 1;
+      return requests === 1
+        ? jsonResponse({
+            cursor: "fictional-cursor-1",
+            data: [
+              createCSFloatListingFixture(1),
+              createCSFloatListingFixture(2),
+            ],
+          })
+        : jsonResponse({
+            cursor: "fictional-cursor-2",
+            data: [
+              createCSFloatListingFixture(2),
+              createCSFloatListingFixture(3),
+            ],
+          });
+    },
+  });
+
+  const listings = await provider.getListings({ targetListings: 3 });
+
+  assert.deepEqual(
+    listings.map(({ externalId }) => externalId),
+    [
+      "fictional-listing-001",
+      "fictional-listing-002",
+      "fictional-listing-003",
+    ],
+  );
+});
+
+test("CSFloat Provider stops immediately when page 2 is rate limited", async () => {
+  let requests = 0;
+  const provider = createCsfloatMarketProvider({
+    fetchImplementation: async () => {
+      requests += 1;
+      return requests === 1
+        ? jsonResponse({
+            cursor: "fictional-cursor-1",
+            data: [createCSFloatListingFixture(1)],
+          })
+        : jsonResponse({}, 429);
+    },
+  });
+
+  await assert.rejects(
+    provider.getListings({ targetListings: 2 }),
+    (error: unknown) =>
+      error instanceof MarketProviderError &&
+      error.code === "RATE_LIMITED" &&
+      error.receivedListings === 1,
+  );
+  assert.equal(requests, 2);
+});
+
+test("CSFloat Provider reports a page 2 failure as a partial failed read", async () => {
+  let requests = 0;
+  const provider = createCsfloatMarketProvider({
+    fetchImplementation: async () => {
+      requests += 1;
+      return requests === 1
+        ? jsonResponse({
+            cursor: "fictional-cursor-1",
+            data: [createCSFloatListingFixture(1)],
+          })
+        : jsonResponse({}, 503);
+    },
+  });
+
+  await assert.rejects(
+    provider.getListings({ targetListings: 2 }),
+    (error: unknown) =>
+      error instanceof MarketProviderError &&
+      error.code === "PROVIDER_UNAVAILABLE" &&
+      error.receivedListings === 1,
+  );
+  assert.equal(requests, 2);
+});
+
+test("CSFloat Provider timeout aborts pagination without retrying", async () => {
+  let requests = 0;
+  const provider = createCsfloatMarketProvider({
+    timeoutMs: 20,
+    fetchImplementation: async (_input, init) => {
+      requests += 1;
+      if (requests === 1) {
+        return jsonResponse({
+          cursor: "fictional-cursor-1",
+          data: [createCSFloatListingFixture(1)],
+        });
+      }
+
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new DOMException("aborted", "AbortError")),
+          { once: true },
+        );
+      });
+    },
+  });
+
+  await assert.rejects(
+    provider.getListings({ targetListings: 2 }),
+    (error: unknown) =>
+      error instanceof MarketProviderError &&
+      error.code === "PROVIDER_UNAVAILABLE" &&
+      error.receivedListings === 1,
+  );
+  assert.equal(requests, 2);
 });
 
 test("CSFloat listings URL safely encodes market_hash_name", () => {

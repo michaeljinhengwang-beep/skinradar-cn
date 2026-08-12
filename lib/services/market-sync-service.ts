@@ -24,6 +24,7 @@ type MarketSyncServiceOptions = {
   readonly repository: MarketRepository;
   readonly syncStore: MarketSyncStore;
   readonly listingsLimit?: number;
+  readonly targetListings?: number;
   readonly now?: () => Date;
 };
 
@@ -51,6 +52,7 @@ export function createMarketSyncService({
   repository,
   syncStore,
   listingsLimit,
+  targetListings,
   now = () => new Date(),
 }: MarketSyncServiceOptions) {
   return {
@@ -72,7 +74,7 @@ export function createMarketSyncService({
       try {
         assertSyncActive(signal);
         const externalListings = await provider.getListings({
-          limit: listingsLimit,
+          targetListings: targetListings ?? listingsLimit,
           signal,
         });
         assertSyncActive(signal);
@@ -106,6 +108,9 @@ export function createMarketSyncService({
           completedAt,
         };
       } catch (error) {
+        if (error instanceof MarketProviderError) {
+          received = Math.max(received, error.receivedListings);
+        }
         const errorCode = getSyncErrorCode(error, signal);
         const completedAt = now().toISOString();
         await syncStore.completeSync({

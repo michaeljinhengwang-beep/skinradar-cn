@@ -14,15 +14,18 @@ export type MarketProviderErrorCode =
 export class MarketProviderError extends Error {
   readonly code: MarketProviderErrorCode;
   readonly provider: MarketDataProviderName;
+  readonly receivedListings: number;
 
   constructor(
     code: MarketProviderErrorCode,
     provider: MarketDataProviderName,
     message: string,
+    receivedListings = 0,
   ) {
     super(message);
     this.name = "MarketProviderError";
     this.code = code;
     this.provider = provider;
+    this.receivedListings = receivedListings;
   }
 }

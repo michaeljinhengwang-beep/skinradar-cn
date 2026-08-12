@@ -1,6 +1,7 @@
 import type {
   CSFloatListingItemResponse,
   CSFloatListingResponse,
+  CSFloatListingsPageResponse,
   CSFloatListingsResponse,
 } from "../../types/csfloat.ts";
 import { MarketProviderError } from "./errors.ts";
@@ -99,9 +100,19 @@ function parseListing(value: unknown, index: number): CSFloatListingResponse {
   };
 }
 
-function extractListings(input: unknown): readonly unknown[] {
+function parseCursor(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  return requireText(value, "CSFloat listings response.cursor");
+}
+
+export function parseCSFloatListingsPageResponse(
+  input: unknown,
+): CSFloatListingsPageResponse {
   if (Array.isArray(input)) {
-    return input;
+    return { data: input.map(parseListing), cursor: null };
   }
 
   const envelope = requireRecord(input, "CSFloat listings response");
@@ -111,11 +122,14 @@ function extractListings(input: unknown): readonly unknown[] {
     );
   }
 
-  return envelope.data;
+  return {
+    data: envelope.data.map(parseListing),
+    cursor: parseCursor(envelope.cursor),
+  };
 }
 
 export function parseCSFloatListingsResponse(
   input: unknown,
 ): CSFloatListingsResponse {
-  return extractListings(input).map(parseListing);
+  return parseCSFloatListingsPageResponse(input).data;
 }

@@ -14,3 +14,8 @@ export type CSFloatListingResponse = {
 };
 
 export type CSFloatListingsResponse = readonly CSFloatListingResponse[];
+
+export type CSFloatListingsPageResponse = {
+  readonly data: CSFloatListingsResponse;
+  readonly cursor: string | null;
+};

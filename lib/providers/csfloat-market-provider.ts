@@ -3,9 +3,12 @@ import type {
   MarketDataProvider,
   MarketListingsQuery,
 } from "../../types/data-provider.ts";
-import type { CSFloatListingResponse } from "../../types/csfloat.ts";
+import type {
+  CSFloatListingResponse,
+  CSFloatListingsPageResponse,
+} from "../../types/csfloat.ts";
 import { parseCSFloatMarketHashName } from "./csfloat-market-name.ts";
-import { parseCSFloatListingsResponse } from "./csfloat-response.ts";
+import { parseCSFloatListingsPageResponse } from "./csfloat-response.ts";
 import { MarketProviderError } from "./errors.ts";
 import { normalizeExternalMarketListings } from "./normalizers/market.ts";
 
@@ -13,6 +16,8 @@ export const CSFLOAT_LISTINGS_ENDPOINT =
   "https://csfloat.com/api/v1/listings";
 export const DEFAULT_CSFLOAT_LISTINGS_LIMIT = 10;
 export const MAX_CSFLOAT_LISTINGS_LIMIT = 50;
+export const MAX_SYNC_LISTINGS = 500;
+export const MAX_CSFLOAT_PAGES = 10;
 const DEFAULT_TIMEOUT_MS = 8_000;
 
 export type CSFloatFetch = (
@@ -26,7 +31,7 @@ type CsfloatMarketProviderConfig = {
   readonly timeoutMs?: number;
 };
 
-function normalizeLimit(limit?: number) {
+function normalizePageLimit(limit?: number) {
   if (limit === undefined) {
     return DEFAULT_CSFLOAT_LISTINGS_LIMIT;
   }
@@ -41,9 +46,23 @@ function normalizeLimit(limit?: number) {
   );
 }
 
+function normalizeTargetListings(options: MarketListingsQuery) {
+  const targetListings = options.targetListings ?? options.limit;
+  if (targetListings === undefined || !Number.isFinite(targetListings)) {
+    return DEFAULT_CSFLOAT_LISTINGS_LIMIT;
+  }
+
+  return Math.min(MAX_SYNC_LISTINGS, Math.max(1, Math.floor(targetListings)));
+}
+
 export function buildCSFloatListingsUrl(options: MarketListingsQuery = {}) {
   const url = new URL(CSFLOAT_LISTINGS_ENDPOINT);
-  url.searchParams.set("limit", String(normalizeLimit(options.limit)));
+  url.searchParams.set("limit", String(normalizePageLimit(options.limit)));
+
+  const cursor = options.cursor?.trim();
+  if (cursor) {
+    url.searchParams.set("cursor", cursor);
+  }
 
   const marketHashName = options.marketHashName?.trim();
   if (marketHashName) {
@@ -57,12 +76,16 @@ export function buildCSFloatListingsUrl(options: MarketListingsQuery = {}) {
   return url;
 }
 
-function mapStatusError(status: number): MarketProviderError {
+function mapStatusError(
+  status: number,
+  receivedListings: number,
+): MarketProviderError {
   if (status === 401 || status === 403) {
     return new MarketProviderError(
       "AUTH_REQUIRED",
       "csfloat",
       "CSFloat rejected the request credentials or access context.",
+      receivedListings,
     );
   }
 
@@ -71,6 +94,7 @@ function mapStatusError(status: number): MarketProviderError {
       "RATE_LIMITED",
       "csfloat",
       "CSFloat rate limited the read-only listings request.",
+      receivedListings,
     );
   }
 
@@ -79,6 +103,7 @@ function mapStatusError(status: number): MarketProviderError {
       "PROVIDER_UNAVAILABLE",
       "csfloat",
       "CSFloat listings service is currently unavailable.",
+      receivedListings,
     );
   }
 
@@ -86,7 +111,21 @@ function mapStatusError(status: number): MarketProviderError {
     "INVALID_RESPONSE",
     "csfloat",
     "CSFloat rejected the read-only listings request.",
+    receivedListings,
   );
+}
+
+function preservePartialCount(error: unknown, receivedListings: number) {
+  if (error instanceof MarketProviderError) {
+    return new MarketProviderError(
+      error.code,
+      error.provider,
+      error.message,
+      Math.max(error.receivedListings, receivedListings),
+    );
+  }
+
+  return error;
 }
 
 function toExternalListing(
@@ -125,7 +164,7 @@ export function createCsfloatMarketProvider({
     async getListings(options = {}) {
       const controller = new AbortController();
       const abortFromCaller = () => controller.abort(options.signal?.reason);
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       options.signal?.addEventListener("abort", abortFromCaller, { once: true });
       if (options.signal?.aborted) {
         abortFromCaller();
@@ -137,42 +176,116 @@ export function createCsfloatMarketProvider({
           headers.set("Authorization", normalizedApiKey);
         }
 
-        let response: Response;
-        try {
-          response = await fetchImplementation(buildCSFloatListingsUrl(options), {
-            method: "GET",
-            headers,
-            signal: controller.signal,
-          });
-        } catch {
-          throw new MarketProviderError(
-            "PROVIDER_UNAVAILABLE",
-            "csfloat",
-            "CSFloat read-only listings request failed or was aborted.",
+        const targetListings = normalizeTargetListings(options);
+        const listingsByExternalId = new Map<string, ExternalMarketListing>();
+        const seenCursors = new Set<string>();
+        let cursor: string | undefined;
+        let pageCount = 0;
+
+        while (listingsByExternalId.size < targetListings) {
+          if (pageCount >= MAX_CSFLOAT_PAGES) {
+            throw new MarketProviderError(
+              "INVALID_RESPONSE",
+              "csfloat",
+              "CSFloat pagination exceeded the configured page limit.",
+              listingsByExternalId.size,
+            );
+          }
+
+          const pageLimit = Math.min(
+            MAX_CSFLOAT_LISTINGS_LIMIT,
+            targetListings - listingsByExternalId.size,
           );
+          timeout = setTimeout(() => controller.abort(), timeoutMs);
+          let response: Response;
+          try {
+            response = await fetchImplementation(
+              buildCSFloatListingsUrl({
+                ...options,
+                cursor,
+                limit: pageLimit,
+              }),
+              {
+                method: "GET",
+                headers,
+                signal: controller.signal,
+              },
+            );
+          } catch {
+            throw new MarketProviderError(
+              "PROVIDER_UNAVAILABLE",
+              "csfloat",
+              "CSFloat read-only listings request failed or was aborted.",
+              listingsByExternalId.size,
+            );
+          }
+          pageCount += 1;
+
+          if (!response.ok) {
+            clearTimeout(timeout);
+            timeout = undefined;
+            throw mapStatusError(response.status, listingsByExternalId.size);
+          }
+
+          let payload: unknown;
+          try {
+            payload = await response.json();
+          } catch {
+            throw new MarketProviderError(
+              "INVALID_RESPONSE",
+              "csfloat",
+              "CSFloat listings response was not valid JSON.",
+              listingsByExternalId.size,
+            );
+          }
+          clearTimeout(timeout);
+          timeout = undefined;
+
+          let page: CSFloatListingsPageResponse;
+          try {
+            page = parseCSFloatListingsPageResponse(payload);
+          } catch (error) {
+            throw preservePartialCount(error, listingsByExternalId.size);
+          }
+
+          if (page.cursor !== null && seenCursors.has(page.cursor)) {
+            throw new MarketProviderError(
+              "INVALID_RESPONSE",
+              "csfloat",
+              "CSFloat pagination returned a duplicate cursor.",
+              listingsByExternalId.size,
+            );
+          }
+
+          for (const listing of page.data) {
+            if (listingsByExternalId.size >= targetListings) {
+              break;
+            }
+
+            if (!listingsByExternalId.has(listing.id)) {
+              listingsByExternalId.set(listing.id, toExternalListing(listing));
+            }
+          }
+
+          if (
+            listingsByExternalId.size >= targetListings ||
+            page.cursor === null ||
+            page.data.length === 0
+          ) {
+            break;
+          }
+
+          seenCursors.add(page.cursor);
+          cursor = page.cursor;
         }
 
-        if (!response.ok) {
-          throw mapStatusError(response.status);
-        }
-
-        let payload: unknown;
-        try {
-          payload = await response.json();
-        } catch {
-          throw new MarketProviderError(
-            "INVALID_RESPONSE",
-            "csfloat",
-            "CSFloat listings response was not valid JSON.",
-          );
-        }
-
-        const listings = parseCSFloatListingsResponse(payload).map(
-          toExternalListing,
-        );
-        return normalizeExternalMarketListings(listings);
+        return normalizeExternalMarketListings([
+          ...listingsByExternalId.values(),
+        ]);
       } finally {
-        clearTimeout(timeout);
+        if (timeout !== undefined) {
+          clearTimeout(timeout);
+        }
         options.signal?.removeEventListener("abort", abortFromCaller);
       }
     },

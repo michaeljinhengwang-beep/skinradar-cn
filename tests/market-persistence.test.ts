@@ -471,7 +471,7 @@ test("CSFloat Provider sync uses the configured limit and preserves provider iso
       requestedLimit = new URL(input).searchParams.get("limit");
       return new Response(
         JSON.stringify({
-          cursor: "fictional-cursor",
+          cursor: null,
           data: [
             {
               id: "test-csfloat-listing-001",
@@ -734,6 +734,38 @@ test("Provider failure leaves previously persisted listings untouched", async ()
 
   await service.sync();
 
+  assert.equal(JSON.stringify(state.rows), before);
+  assert.ok(!state.operations.includes("upsert-cache"));
+});
+
+test("partial Provider failure records received rows but never writes an incomplete batch", async () => {
+  const existingRow = toMarketListingRow(normalizedListing);
+  const { client, state } = createFakeDatabaseClient([existingRow]);
+  const before = JSON.stringify(state.rows);
+  const syncDatabase = createFakeSyncDatabaseClient();
+  const service = createMarketSyncService({
+    provider: createProvider("csfloat", async () => {
+      throw new MarketProviderError(
+        "PROVIDER_UNAVAILABLE",
+        "csfloat",
+        "fictional page 2 failure",
+        50,
+      );
+    }),
+    repository: createPersistentRepository(client),
+    syncStore: createSupabaseMarketSyncStore(syncDatabase.client),
+    targetListings: 100,
+    now: () => NOW,
+  });
+
+  const result = await service.sync();
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.received, 50);
+  assert.equal(result.written, 0);
+  assert.equal(syncDatabase.completions[0]?.status, "failed");
+  assert.equal(syncDatabase.completions[0]?.listingsReceived, 50);
+  assert.equal(syncDatabase.completions[0]?.listingsWritten, 0);
   assert.equal(JSON.stringify(state.rows), before);
   assert.ok(!state.operations.includes("upsert-cache"));
 });
